@@ -4,9 +4,13 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { db, init: initDb } = require('./db');
+const { db, init: initDb, getEmotionalState, upsertEmotionalState, defaultEmotionalState,
+  addCondensedMemory, getCondensedMemories, decayCondensedMemories,
+  logGroundTruth } = require('./db');
 const { signToken, authMiddleware } = require('./auth');
-const { buildSystemPrompt, chat } = require('./llm');
+const { buildSystemPrompt, chat, proactiveChat,
+  analyzeStimulus, applyStimulus,
+  generateInternalMonologue, compressMemory } = require('./llm');
 
 // Ensure data directory exists
 const dataDir = path.join(__dirname, 'data');
@@ -270,10 +274,20 @@ app.post('/api/characters/:id/chat', authMiddleware, async (req, res) => {
     db.prepare('INSERT INTO messages (character_id, role, content) VALUES (?, ?, ?)')
       .run(char.id, 'user', message.trim());
 
+    // Log ground truth
+    const msgCount = db.prepare('SELECT COUNT(*) as count FROM messages WHERE character_id = ?').get(char.id).count;
+    logGroundTruth(char.id, 'user', message.trim(), msgCount);
+
     // Get recent conversation history
     const recentMessages = db.prepare(
       'SELECT role, content FROM messages WHERE character_id = ? ORDER BY created_at DESC LIMIT 30'
     ).all(char.id).reverse();
+
+    // Emotional state — load, analyze stimulus, update
+    let emotionalState = getEmotionalState(char.id);
+    const stimulus = analyzeStimulus(message.trim());
+    emotionalState = applyStimulus(emotionalState, stimulus);
+    upsertEmotionalState(char.id, emotionalState);
 
     // Call LLM
     let reply;
@@ -283,7 +297,7 @@ app.post('/api/characters/:id/chat', authMiddleware, async (req, res) => {
         content: m.content,
       }));
 
-      reply = await chat(char.system_prompt, history);
+      reply = await chat(char.system_prompt, history, emotionalState);
     } catch (llmErr) {
       console.error('LLM error:', llmErr);
       reply = '抱歉，我现在有点累，稍等一下再来找我聊好吗？';
@@ -292,6 +306,22 @@ app.post('/api/characters/:id/chat', authMiddleware, async (req, res) => {
     // Save AI reply
     const result = db.prepare('INSERT INTO messages (character_id, role, content) VALUES (?, ?, ?)')
       .run(char.id, 'assistant', reply);
+
+    // Log ground truth for AI reply
+    logGroundTruth(char.id, 'assistant', reply, msgCount + 1);
+
+    // Memory compression check — every 10 messages, compress and decay
+    if ((msgCount + 1) % 10 === 0) {
+      decayCondensedMemories(char.id);
+      const olderMessages = db.prepare(
+        'SELECT role, content FROM messages WHERE character_id = ? ORDER BY created_at ASC LIMIT ?'
+      ).all(char.id, msgCount - 10);
+      if (olderMessages.length > 0) {
+        compressMemory(char.system_prompt, olderMessages).then(summary => {
+          if (summary) addCondensedMemory(char.id, summary, 0.6, emotionalState.mood);
+        }).catch(() => {});
+      }
+    }
 
     res.json({
       id: result.lastInsertRowid,
@@ -335,34 +365,25 @@ app.post('/api/characters/:id/proactive', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: '角色不存在' });
     }
 
-    // Get recent messages to check if it's been quiet
+    // Get recent messages
     const recentMessages = db.prepare(
       'SELECT role, content, created_at FROM messages WHERE character_id = ? ORDER BY created_at DESC LIMIT 20'
     ).all(char.id).reverse();
 
-    // Build proactive prompt
-    const proactivePrompt = `${char.system_prompt}
-
-现在是实时对话场景。刚才双方都没有说话，你需要主动发起一条消息来继续对话。这条消息应该：
-1. 自然随意，像是在真实场景中忽然想到什么要说
-2. 可能是分享一件小事、一个想法、一句关心，或者看到的有趣的东西
-3. 不要总以"对了"、"突然想到"开头，要多样化的开场
-4. 简短自然，1-3 句话即可
-5. 要符合你的角色性格设定
-6. 如果你之前刚说过话，这次可以换个话题或稍微安静的方式出现`;
+    // Load emotional state
+    const emotionalState = getEmotionalState(char.id);
 
     const history = recentMessages.map(m => ({
       role: m.role,
       content: m.content,
     }));
-    history.push({ role: 'user', content: '（沉默了一会儿）' });
 
     let reply;
     try {
-      reply = await chat(proactivePrompt, history);
+      reply = await proactiveChat(char.system_prompt, history, emotionalState);
     } catch (llmErr) {
       console.error('Proactive LLM error:', llmErr);
-      return res.json(null); // Silent fail — frontend will ignore null
+      return res.json(null);
     }
 
     // Save proactive message

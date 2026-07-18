@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [typingText, setTypingText] = useState(''); // real-time AI preview
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
@@ -175,6 +176,10 @@ export default function ChatPage() {
             background: charAvatarGradient(character?.avatar_color),
           }} />
           <span style={styles.charName}>{character?.name}</span>
+          {/* Emotional state indicator */}
+          <span style={styles.moodTag}>
+            {moodEmoji[character?.mood] || '😊'}
+          </span>
         </div>
         <div style={styles.topActions}>
           {!character?.preset_id && (
@@ -267,6 +272,11 @@ export default function ChatPage() {
   );
 }
 
+const moodEmoji = {
+  joyful: '😊', content: '😌', calm: '😶', excited: '🤩',
+  anxious: '😰', melancholic: '😔', confident: '💪',
+};
+
 function charAvatarGradient(color) {
   const gradients = {
     '#f472b6': 'linear-gradient(135deg, #f472b6, #fb7185)',
@@ -309,6 +319,10 @@ const styles = {
     flexShrink: 0,
   },
   charName: { fontSize: '16px', fontWeight: '600' },
+  moodTag: {
+    fontSize: '12px', padding: '2px 8px', borderRadius: '10px',
+    background: 'var(--bg-input)', marginLeft: '6px',
+  },
   topActions: { display: 'flex', gap: '4px' },
   actionBtn: {
     background: 'none', border: 'none', fontSize: '18px',
