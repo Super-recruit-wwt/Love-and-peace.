@@ -107,6 +107,9 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    // Focus immediately before async to avoid setSending(true) blocking
+    inputRef.current?.focus();
+    setSending(true);
     setSending(true);
 
     try {
@@ -122,8 +125,8 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Re-focus the input after async work finishes
-      inputRef.current?.focus();
+      // Focus after async too as a fallback
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [input, sending, id]);
 
@@ -260,6 +263,10 @@ export default function ChatPage() {
           ref={inputRef}
           style={styles.textInput}
           type="text"
+          placeholder="输入消息…"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <button
           style={styles.sendBtn}
