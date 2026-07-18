@@ -108,6 +108,11 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    // Focus the input immediately — before the async call
+    // Using a microtask ensures React has flushed setInput('') and re-rendered
+    Promise.resolve().then(() => {
+      inputRef.current?.focus();
+    });
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -126,7 +131,6 @@ export default function ChatPage() {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           inputRef.current?.focus();
-          inputRef.current?.select();
         });
       });
     }
