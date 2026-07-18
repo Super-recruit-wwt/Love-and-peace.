@@ -1,0 +1,147 @@
+/* 选角页 —— 无框角色卡（capability-card 模式） */
+
+.home-wrap {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: var(--space-6) 24px var(--space-12);
+  min-height: 100vh;
+}
+
+.home-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--color-ink-3);
+}
+
+.home-back:hover {
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.home-title {
+  margin-top: 12px;
+}
+
+.home-section {
+  margin-top: var(--space-8);
+}
+
+.home-section-title {
+  margin-top: 10px;
+}
+
+/* 我的伙伴：细线行 */
+.home-mine {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-hairline);
+}
+
+.home-mine-name {
+  font-family: var(--font-display-cn);
+  font-size: 17px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink);
+  flex: 1;
+}
+
+.home-mine-arrow {
+  color: var(--color-ink-3);
+}
+
+/* 预设伙伴：3 列无框卡 */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6) 40px;
+  margin-top: var(--space-4);
+}
+
+.home-companion {
+  border-top: 1px solid var(--color-hairline);
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-soft);
+}
+
+.home-companion:hover {
+  transform: translateY(-2px);
+}
+
+.home-companion-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.home-companion-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-ink-2);
+}
+
+.home-companion-tagline {
+  font-family: var(--font-display-cn);
+  font-size: 14px;
+  line-height: 1.8;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink-2);
+  border-left: 2px solid var(--color-lotus);
+  padding-left: 12px;
+}
+
+/* 创建卡：素坯 */
+.home-create {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-soft),
+    transform var(--dur-fast) var(--ease-soft);
+  align-self: start;
+}
+
+.home-create:hover {
+  border-color: var(--color-ink-2);
+  transform: translateY(-2px);
+}
+
+.home-create-icon {
+  color: var(--color-celadon);
+}
+
+.home-create-name {
+  font-family: var(--font-display-cn);
+  font-size: 18px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink);
+}
+
+.home-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 100vh;
+}
+
+@media (max-width: 1024px) {
+  .home-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}

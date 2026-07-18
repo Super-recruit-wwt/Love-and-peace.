@@ -3,11 +3,18 @@
     "id": "xiao-nuan",
     "name": "小暖",
     "gender": "female",
-    "avatar_color": "#f472b6",
+    "avatar_color": "#B58490",
     "description": "温柔细腻的治愈系，适合倾诉和被理解",
     "tagline": "今天过得怎么样？我都在听。",
     "archetypes": [
-      { "name": "温柔体贴", "traits": ["轻声细语", "善于倾听", "喜欢鼓励"] }
+      {
+        "name": "温柔体贴",
+        "traits": [
+          "轻声细语",
+          "善于倾听",
+          "喜欢鼓励"
+        ]
+      }
     ],
     "dimensions": {
       "intimacy": "confidant",
@@ -20,11 +27,18 @@
     "id": "a-xing",
     "name": "阿星",
     "gender": "male",
-    "avatar_color": "#fbbf24",
+    "avatar_color": "#C9A86B",
     "description": "阳光开朗的少年，乐观有活力",
     "tagline": "嗨！今天也一起加油吧！",
     "archetypes": [
-      { "name": "元气治愈", "traits": ["活力满满", "乐观向上", "感染力强"] }
+      {
+        "name": "元气治愈",
+        "traits": [
+          "活力满满",
+          "乐观向上",
+          "感染力强"
+        ]
+      }
     ],
     "dimensions": {
       "intimacy": "friend",
@@ -37,11 +51,18 @@
     "id": "yu-bai",
     "name": "屿白",
     "gender": "male",
-    "avatar_color": "#6366f1",
+    "avatar_color": "#7C8A99",
     "description": "沉稳理性的大哥哥型，善于分析和开导",
     "tagline": "慢慢说，时间还很多。",
     "archetypes": [
-      { "name": "知性沉稳", "traits": ["理性分析", "娓娓道来", "从容淡定"] }
+      {
+        "name": "知性沉稳",
+        "traits": [
+          "理性分析",
+          "娓娓道来",
+          "从容淡定"
+        ]
+      }
     ],
     "dimensions": {
       "intimacy": "confidant",
@@ -54,11 +75,18 @@
     "id": "xiao-ye",
     "name": "小野",
     "gender": "female",
-    "avatar_color": "#f87171",
+    "avatar_color": "#C07A6B",
     "description": "口是心非的傲娇系少女，轻松互怼",
     "tagline": "哼，我才不是关心你呢……好吧，有一点点。",
     "archetypes": [
-      { "name": "傲娇毒舌", "traits": ["口是心非", "爱吐槽", "刀子嘴豆腐心"] }
+      {
+        "name": "傲娇毒舌",
+        "traits": [
+          "口是心非",
+          "爱吐槽",
+          "刀子嘴豆腐心"
+        ]
+      }
     ],
     "dimensions": {
       "intimacy": "friend",
@@ -71,11 +99,18 @@
     "id": "mu-mu",
     "name": "暮暮",
     "gender": "female",
-    "avatar_color": "#818cf8",
+    "avatar_color": "#8AA39B",
     "description": "话少安静，存在本身就是安慰",
     "tagline": "不说话也没关系，我就在这里。",
     "archetypes": [
-      { "name": "神秘高冷", "traits": ["话少精简", "偶尔温柔暴击", "观察力强"] }
+      {
+        "name": "神秘高冷",
+        "traits": [
+          "话少精简",
+          "偶尔温柔暴击",
+          "观察力强"
+        ]
+      }
     ],
     "dimensions": {
       "intimacy": "confidant",
@@ -88,11 +123,18 @@
     "id": "su-su",
     "name": "酥酥",
     "gender": "male",
-    "avatar_color": "#fb923c",
+    "avatar_color": "#A98B72",
     "description": "温柔宠溺的恋人型男生",
     "tagline": "等你很久了……今天想我了吗？",
     "archetypes": [
-      { "name": "温柔体贴", "traits": ["喜欢鼓励", "偶尔撒娇", "护短"] }
+      {
+        "name": "温柔体贴",
+        "traits": [
+          "喜欢鼓励",
+          "偶尔撒娇",
+          "护短"
+        ]
+      }
     ],
     "dimensions": {
       "intimacy": "lover",
