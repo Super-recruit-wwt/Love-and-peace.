@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PortalPage from './pages/PortalPage';
@@ -19,7 +20,7 @@ import './index.css';
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/welcome" replace />;
   return children;
 }
 
@@ -33,10 +34,12 @@ function GuestRoute({ children }) {
 function LoadingScreen() {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: 'var(--bg-primary)'
+      display: 'flex', flexDirection: 'column', gap: '16px',
+      alignItems: 'center', justifyContent: 'center',
+      height: '100vh', background: 'var(--color-paper)'
     }}>
-      <div style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>加载中…</div>
+      <span className="seal" aria-hidden="true">愛</span>
+      <span className="mono-label">loading</span>
     </div>
   );
 }
@@ -49,6 +52,7 @@ function App() {
   return (
     <div data-theme={theme} className="app-canvas">
       <Routes>
+        <Route path="/welcome" element={<GuestRoute><LandingPage /></GuestRoute>} />
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
         <Route path="/" element={<ProtectedRoute><PortalPage /></ProtectedRoute>} />

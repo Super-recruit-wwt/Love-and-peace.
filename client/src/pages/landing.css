@@ -1,0 +1,319 @@
+/* Landing 页布局 —— 青白系统 · Cohere 骨架 */
+
+/* ---- 导航 ---- */
+
+.landing-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 24px;
+}
+
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.landing-brand-name {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.landing-nav-links {
+  display: flex;
+  gap: 40px;
+}
+
+.landing-nav-links a {
+  color: var(--color-ink-2);
+  font-size: 14px;
+}
+
+.landing-nav-links a:hover {
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.landing-login-link {
+  color: var(--color-ink-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.landing-login-link:hover {
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+/* ---- Hero：非对称 40 / 55 ---- */
+
+.landing-hero {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-12) 24px var(--space-15);
+  display: grid;
+  grid-template-columns: minmax(0, 40fr) minmax(0, 55fr);
+  column-gap: 5%;
+  align-items: center;
+}
+
+.landing-hero-copy .t-hero {
+  margin: 16px 0 24px;
+}
+
+.landing-hero-cta {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-top: var(--space-6);
+}
+
+/* Hero 聊天演示卡（暖色版 agent-console-card） */
+
+.landing-demo {
+  width: 100%;
+  max-width: 460px;
+  justify-self: end;
+  padding: 24px;
+}
+
+.landing-demo-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.landing-demo-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+}
+
+.landing-demo-name {
+  font-family: var(--font-display-cn);
+  font-size: 17px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink);
+}
+
+.landing-demo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.landing-demo-body .bubble {
+  max-width: 85%;
+  font-size: 14.5px;
+}
+
+.landing-demo-body .bubble--user {
+  align-self: flex-end;
+}
+
+.landing-demo-body .bubble--ai {
+  align-self: flex-start;
+}
+
+.landing-demo-time {
+  align-self: center;
+}
+
+.landing-demo-typing {
+  display: inline-flex;
+  gap: 5px;
+  padding: 14px 16px;
+}
+
+/* ---- 六位伙伴 ---- */
+
+.landing-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-15) 24px;
+}
+
+.landing-section .t-display {
+  margin-top: 12px;
+}
+
+.landing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6) 40px;
+  margin-top: var(--space-8);
+}
+
+/* capability-card 模式：顶部细线，无框 */
+.landing-companion {
+  border-top: 1px solid var(--color-hairline);
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.landing-companion-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.landing-companion-desc {
+  color: var(--color-ink-2);
+  line-height: 1.7;
+}
+
+/* 台词：宋体 + 藕荷竖线（宋瓷竖向装饰） */
+.landing-companion-tagline {
+  font-family: var(--font-display-cn);
+  font-size: 15px;
+  line-height: 1.8;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink-2);
+  border-left: 2px solid var(--color-lotus);
+  padding-left: 12px;
+}
+
+/* ---- 黛墨色带：性格定制 ---- */
+
+.landing-band-inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--space-12) 24px;
+}
+
+.landing-band-inner .t-display {
+  margin: 12px 0 20px;
+}
+
+.landing-band-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: var(--space-6);
+}
+
+.landing-band-rows {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-hairline);
+}
+
+.landing-band-dim {
+  flex: 0 0 72px;
+}
+
+.landing-band-values {
+  color: var(--color-ink-2);
+  font-size: 15px;
+}
+
+.landing-band-cta {
+  margin-top: var(--space-6);
+}
+
+/* ---- Footer ---- */
+
+.landing-footer {
+  border-top: 1px solid rgba(233, 228, 218, 0.16);
+}
+
+.landing-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-8) 24px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.landing-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.landing-footer-name {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-moon);
+}
+
+.landing-footer-links {
+  display: flex;
+  gap: 24px;
+}
+
+.landing-footer-links a {
+  color: var(--color-ink-2);
+  font-size: 14px;
+}
+
+.landing-footer-links a:hover {
+  color: var(--color-moon);
+}
+
+.landing-footer-note {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4) 24px var(--space-3);
+}
+
+/* ---- 响应式 ---- */
+
+@media (max-width: 1024px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-8);
+    padding-top: var(--space-8);
+    padding-bottom: var(--space-12);
+  }
+
+  .landing-demo {
+    justify-self: start;
+  }
+
+  .landing-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .landing-nav-links {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-section {
+    padding: var(--space-12) 20px;
+  }
+
+  .landing-hero-cta {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .landing-footer-inner {
+    flex-direction: column;
+  }
+}
