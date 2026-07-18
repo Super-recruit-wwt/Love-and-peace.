@@ -71,10 +71,7 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    // Capture ref before any state change that could trigger re-render
-    const el = inputRef.current;
     setSending(true);
-    el?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -88,12 +85,7 @@ export default function ChatPage() {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
     } finally {
-      const el = inputRef.current;
       setSending(false);
-      // Fire focus attempts at multiple delays to catch the right React commit moment
-      setTimeout(() => el?.focus(), 0);
-      setTimeout(() => el?.focus(), 50);
-      setTimeout(() => el?.focus(), 150);
     }
   }, [input, sending, id]);
 
@@ -265,12 +257,9 @@ export default function ChatPage() {
             onChange={e => setInput(e.target.value)}
           />
           <button
-            style={{
-              ...styles.sendBtn,
-              opacity: sending || !input.trim() ? 0.4 : 1,
-              pointerEvents: sending || !input.trim() ? 'none' : 'auto',
-            }}
             type="submit"
+            disabled={sending || !input.trim()}
+            style={styles.sendBtn}
           >
             发送
           </button>
