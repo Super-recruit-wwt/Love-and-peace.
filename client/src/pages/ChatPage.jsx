@@ -108,7 +108,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    setSending(true);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
