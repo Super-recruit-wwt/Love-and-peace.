@@ -17,12 +17,14 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
   const proactiveTimerRef = useRef(null);
+  const proactiveCountRef = useRef(0); // 连续主动消息计数，用户回复后清零
 
   useEffect(() => { loadData(); }, [id]);
 
   const loadData = async () => {
     setLoading(true);
     setError('');
+    proactiveCountRef.current = 0; // 切换角色后重新计数
     try {
       const [chars, msgs] = await Promise.all([
         get('/characters'),
@@ -46,18 +48,21 @@ export default function ChatPage() {
     const minDelay = 120000, maxDelay = 480000;
     const delay = minDelay + Math.random() * (maxDelay - minDelay);
     proactiveTimerRef.current = setTimeout(async () => {
+      // 连续主动消息最多 2 条：用户不回复就安静下来
+      if (proactiveCountRef.current >= 2) return;
       const idleTime = Date.now() - lastInteractionRef.current;
       if (idleTime < minDelay) { scheduleProactive(); return; }
       try {
         const result = await post(`/characters/${id}/proactive`, {});
         if (result && result.content) {
+          proactiveCountRef.current += 1;
           setMessages(prev => {
             if (prev.length > 0 && prev[prev.length - 1].id === result.id) return prev;
             return [...prev, result];
           });
         }
       } catch (_) {}
-      scheduleProactive();
+      if (proactiveCountRef.current < 2) scheduleProactive();
     }, delay);
   }, [id]);
 
@@ -77,6 +82,7 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    proactiveCountRef.current = 0; // 用户开口，重置连发计数
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
       const newMessages = [reply];
@@ -88,8 +94,9 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      scheduleProactive(); // 唤醒可能已安静的主动消息循环
     }
-  }, [input, sending, id]);
+  }, [input, sending, id, scheduleProactive]);
 
   const handleClearHistory = async () => {
     if (!confirm('确定清空所有对话记录吗？此操作不可恢复。')) return;
