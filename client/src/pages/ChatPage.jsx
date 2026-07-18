@@ -66,8 +66,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Refocus after send
-      setTimeout(() => chatInputRef.current?.focus(), 10);
     }
   }, [input, sending, id]);
 
