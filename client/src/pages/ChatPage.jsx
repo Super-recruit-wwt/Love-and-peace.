@@ -264,7 +264,7 @@ export default function ChatPage() {
           <button
             type="submit"
             disabled={sending || !input.trim()}
-            style={styles.sendBtn}
+            style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
           >
             发送
           </button>
@@ -376,5 +376,12 @@ const styles = {
     background: 'var(--accent)', color: '#fff',
     border: 'none', borderRadius: '24px',
     fontSize: '15px', fontWeight: '600', cursor: 'pointer',
+  },
+  sendBtnDisabled: {
+    padding: '10px 20px',
+    background: 'var(--accent)', color: '#fff',
+    border: 'none', borderRadius: '24px',
+    fontSize: '15px', fontWeight: '600', cursor: 'default',
+    opacity: 0.4,
   },
 };
