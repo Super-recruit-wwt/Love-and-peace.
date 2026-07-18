@@ -11,46 +11,13 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [typingText, setTypingText] = useState(''); // real-time AI preview
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
   const proactiveTimerRef = useRef(null);
 
-  // Schedule random proactive check
-  const scheduleProactive = useCallback(() => {
-    if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
-
-    // Random delay between 2 and 8 minutes (in ms)
-    const minDelay = 120000;
-    const maxDelay = 480000;
-    const delay = minDelay + Math.random() * (maxDelay - minDelay);
-
-    proactiveTimerRef.current = setTimeout(async () => {
-      // Check if user has been idle (no messages sent) since last interaction
-      const idleTime = Date.now() - lastInteractionRef.current;
-      if (idleTime < minDelay) {
-        // User interacted recently, reschedule
-        scheduleProactive();
-        return;
-      }
-
-      try {
-        const result = await post(`/characters/${id}/proactive`, {});
-        if (result && result.content) {
-          setMessages(prev => {
-            // Avoid duplicate messages
-            if (prev.length > 0 && prev[prev.length - 1].id === result.id) return prev;
-            return [...prev, result];
-          });
-        }
-      } catch (_) {
-        // Silent fail
-      }
-
-      // Reschedule for next random interval
-      scheduleProactive();
-    }, delay);
+  useEffect(() => {
+    loadData();
   }, [id]);
 
   useEffect(() => {
@@ -125,13 +92,6 @@ export default function ChatPage() {
     }
   }, [input, sending, id]);
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
   const handleClearHistory = async () => {
     if (!confirm('确定清空所有对话记录吗？此操作不可恢复。')) return;
     try {
@@ -151,6 +111,35 @@ export default function ChatPage() {
       alert(err.message);
     }
   };
+
+  // Schedule random proactive check
+  const scheduleProactive = useCallback(() => {
+    if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
+
+    const minDelay = 120000;
+    const maxDelay = 480000;
+    const delay = minDelay + Math.random() * (maxDelay - minDelay);
+
+    proactiveTimerRef.current = setTimeout(async () => {
+      const idleTime = Date.now() - lastInteractionRef.current;
+      if (idleTime < minDelay) {
+        scheduleProactive();
+        return;
+      }
+
+      try {
+        const result = await post(`/characters/${id}/proactive`, {});
+        if (result && result.content) {
+          setMessages(prev => {
+            if (prev.length > 0 && prev[prev.length - 1].id === result.id) return prev;
+            return [...prev, result];
+          });
+        }
+      } catch (_) {}
+
+      scheduleProactive();
+    }, delay);
+  }, [id]);
 
   if (loading) {
     return (
@@ -180,7 +169,6 @@ export default function ChatPage() {
             background: charAvatarGradient(character?.avatar_color),
           }} />
           <span style={styles.charName}>{character?.name}</span>
-          {/* Emotional state indicator */}
           <span style={styles.moodTag}>
             {moodEmoji[character?.mood] || '😊'}
           </span>
@@ -253,25 +241,31 @@ export default function ChatPage() {
       </div>
 
       {/* Input area */}
-      <div style={styles.inputArea} id="chat-msg-input">
-        <input
-          ref={inputRef}
-          style={styles.textInput}
-          type="text"
-          placeholder="输入消息…"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <button
-          style={styles.sendBtn}
-          type="button"
-          onClick={(e) => { e.preventDefault(); if (!sending && input.trim()) handleSend(); }}
-          disabled={sending || !input.trim()}
+      <div style={styles.inputArea}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!sending && input.trim()) handleSend();
+          }}
+          style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'center' }}
         >
-        >
-          发送
-        </button>
+          <input
+            ref={inputRef}
+            autoFocus
+            style={styles.textInput}
+            type="text"
+            placeholder="输入消息…"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+          />
+          <button
+            style={styles.sendBtn}
+            type="submit"
+            disabled={sending || !input.trim()}
+          >
+            发送
+          </button>
+        </form>
       </div>
     </div>
   );
