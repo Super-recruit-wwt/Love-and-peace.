@@ -122,10 +122,10 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Focus the input — the browser will handle this naturally since
-      // the button never gets focus (pointer-events:none while sending)
-      const el = document.querySelector('#chat-msg-input input');
-      if (el) el.focus();
+      setTimeout(() => {
+        const el = document.querySelector('#chat-msg-input input');
+        if (el) el.focus();
+      }, 0);
     }
   }, [input, sending, id]);
 
