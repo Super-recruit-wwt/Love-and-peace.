@@ -86,6 +86,11 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Re-focus the input after async completes
+      setTimeout(() => {
+        const el = document.querySelector(`[data-chat-input="${id}"]`);
+        el?.focus();
+      }, 100);
     }
   }, [input, sending, id]);
 
@@ -250,6 +255,7 @@ export default function ChatPage() {
           <input
             ref={inputRef}
             autoFocus
+            data-chat-input={id}
             style={styles.textInput}
             type="text"
             placeholder="输入消息…"
