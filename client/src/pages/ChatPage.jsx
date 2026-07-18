@@ -107,7 +107,8 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    console.log('focus BEFORE send — inputRef:', inputRef.current);
+    // Focus the input now while React ref is still valid
+    inputRef.current?.focus();
     setSending(true);
     // Focus the input now while React ref is still valid
     inputRef.current?.focus();
@@ -125,11 +126,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      console.log('focus AFTER send — inputRef:', inputRef.current);
-      setTimeout(() => {
-        console.log('focus TIMEOUT — inputRef:', inputRef.current);
-        inputRef.current?.focus();
-      }, 10);
     }
   }, [input, sending, id]);
 
