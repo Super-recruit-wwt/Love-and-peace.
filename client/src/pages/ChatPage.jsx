@@ -271,9 +271,12 @@ export default function ChatPage() {
             onChange={e => setInput(e.target.value)}
           />
           <button
-            style={styles.sendBtn}
+            style={{
+              ...styles.sendBtn,
+              opacity: sending || !input.trim() ? 0.4 : 1,
+              pointerEvents: sending || !input.trim() ? 'none' : 'auto',
+            }}
             type="submit"
-            disabled={sending || !input.trim()}
           >
             发送
           </button>
