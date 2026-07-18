@@ -81,6 +81,9 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    // Focus the input BEFORE the async call so it stays focused
+    // even as the button becomes disabled
+    inputRef.current?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
