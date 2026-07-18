@@ -260,18 +260,6 @@ export default function ChatPage() {
           ref={inputRef}
           style={styles.textInput}
           type="text"
-          placeholder="输入消息…"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          readOnly={sending}
-          ref={(el) => {
-            inputRef.current = el;
-            if (el) {
-              el.style.opacity = sending ? '0.6' : '1';
-            }
-          }}
-          style={styles.textInput}
         />
         <button
           style={styles.sendBtn}
