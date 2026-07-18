@@ -72,13 +72,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Focus immediately, then after reply, then after state resets
-    const refocus = () => {
-      requestAnimationFrame(() => {
-        document.querySelector(`[data-chat-input="${id}"]`)?.focus();
-      });
-    };
-    refocus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -88,14 +81,15 @@ export default function ChatPage() {
       }
       setMessages(prev => [...prev, ...newMessages]);
       lastInteractionRef.current = Date.now();
-      refocus();
     } catch (err) {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
-      refocus();
     } finally {
       setSending(false);
-      refocus();
+      // Re-focus after React commits
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-chat-input="${id}"]`)?.focus();
+      });
     }
   }, [input, sending, id]);
 
