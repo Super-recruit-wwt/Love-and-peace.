@@ -107,8 +107,6 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    // Focus immediately before async to avoid setSending(true) blocking
-    inputRef.current?.focus();
     setSending(true);
     setSending(true);
 
@@ -125,7 +123,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Focus after async too as a fallback
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [input, sending, id]);
