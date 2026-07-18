@@ -283,7 +283,6 @@ export default function ChatPage() {
         <button
           style={styles.sendBtn}
           onMouseDown={(e) => { e.preventDefault(); handleSend(); }}
-          disabled={sending || !input.trim()}
         >
           发送
         </button>
