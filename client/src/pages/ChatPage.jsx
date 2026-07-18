@@ -38,13 +38,33 @@ export default function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
+    if (!loading && character && messages.length === 0) setInput('你好呀～');
+  }, [loading]);
+
+  const scheduleProactive = useCallback(() => {
+    if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
+    const minDelay = 120000, maxDelay = 480000;
+    const delay = minDelay + Math.random() * (maxDelay - minDelay);
+    proactiveTimerRef.current = setTimeout(async () => {
+      const idleTime = Date.now() - lastInteractionRef.current;
+      if (idleTime < minDelay) { scheduleProactive(); return; }
+      try {
+        const result = await post(`/characters/${id}/proactive`, {});
+        if (result && result.content) {
+          setMessages(prev => {
+            if (prev.length > 0 && prev[prev.length - 1].id === result.id) return prev;
+            return [...prev, result];
+          });
+        }
+      } catch (_) {}
+      scheduleProactive();
+    }, delay);
+  }, [id]);
+
+  useEffect(() => {
     if (!loading && character) scheduleProactive();
     return () => { if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current); };
   }, [loading, character, scheduleProactive]);
-
-  useEffect(() => {
-    if (!loading && character && messages.length === 0) setInput('你好呀～');
-  }, [loading]);
 
   const handleSend = useCallback(async (msg) => {
     const text = msg || input.trim();
@@ -64,6 +84,11 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Refocus input after send
+      setTimeout(() => {
+        const inp = document.querySelector('form input[type="text"]');
+        if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+      }, 0);
     }
   }, [input, sending, id]);
 
@@ -146,6 +171,9 @@ export default function ChatPage() {
     </div>
   );
 }
+
+const moodEmoji = { joyful: '😊', content: '😌', calm: '😶', excited: '🤩', anxious: '😰', melancholic: '😔', confident: '💪' };
+
 const moodEmoji = { joyful: '😊', content: '😌', calm: '😶', excited: '🤩', anxious: '😰', melancholic: '😔', confident: '💪' };
 
 function charAvatarGradient(color) {
