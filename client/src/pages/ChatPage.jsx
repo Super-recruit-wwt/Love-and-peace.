@@ -284,10 +284,11 @@ export default function ChatPage() {
         <button
           style={{
             ...styles.sendBtn,
-            opacity: sending || !input.trim() ? 0.5 : 1,
-            cursor: sending || !input.trim() ? 'default' : 'pointer',
+            opacity: sending || !input.trim() ? 0.4 : 1,
+            pointerEvents: sending || !input.trim() ? 'none' : 'auto',
           }}
-          onMouseDown={(e) => { e.preventDefault(); if (!sending && input.trim()) handleSend(); }}
+          onClick={(e) => { e.preventDefault(); if (!sending && input.trim()) handleSend(); }}
+          onMouseDown={(e) => e.preventDefault()}
         >
           发送
         </button>
