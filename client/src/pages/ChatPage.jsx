@@ -127,13 +127,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Refocus after React has committed setSending(false) and restored button
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const el = document.querySelector('#chat-msg-input input');
-          el?.focus();
-        });
-      });
     }
   }, [input, sending, id]);
 
