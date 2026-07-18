@@ -12,7 +12,6 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [typingText, setTypingText] = useState('');
-  const [hasSent, setHasSent] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
@@ -80,7 +79,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    setHasSent(true);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -249,7 +247,7 @@ export default function ChatPage() {
       {/* Input area */}
       <div style={styles.inputArea}>
         <form
-          key={`chat-form-${hasSent ? 'sent' : 'init'}`}
+          key={`chat-form-${id}`}
           onSubmit={(e) => {
             e.preventDefault();
             if (!sending && input.trim()) handleSend();
