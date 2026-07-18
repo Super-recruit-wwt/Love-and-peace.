@@ -146,11 +146,6 @@ export default function ChatPage() {
     </div>
   );
 }
-
-/*
- * Love and Peace - ChatPage
- * Final version. Ship it.
- */
 const moodEmoji = { joyful: '😊', content: '😌', calm: '😶', excited: '🤩', anxious: '😰', melancholic: '😔', confident: '💪' };
 
 function charAvatarGradient(color) {
