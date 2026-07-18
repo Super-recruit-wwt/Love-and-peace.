@@ -122,10 +122,14 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      setTimeout(() => {
+      // After all state updates and re-renders settle, focus the input back
+      const refocus = () => {
         const el = document.querySelector('#chat-msg-input input');
-        el?.focus();
-      }, 200);
+        if (el && document.activeElement !== el) el.focus();
+      };
+      requestAnimationFrame(refocus);
+      setTimeout(refocus, 100);
+      setTimeout(refocus, 300);
     }
   }, [input, sending, id]);
 
