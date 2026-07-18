@@ -11,15 +11,14 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [inputKey, setInputKey] = useState(0);
   const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
   const proactiveTimerRef = useRef(null);
 
   useEffect(() => {
     loadData();
   }, [id]);
-
 
   const loadData = async () => {
     setLoading(true);
@@ -86,6 +85,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      setInputKey(k => k + 1);
     }
   }, [input, sending, id]);
 
@@ -109,7 +109,6 @@ export default function ChatPage() {
     }
   };
 
-  // Schedule random proactive check
   const scheduleProactive = useCallback(() => {
     if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
 
@@ -239,31 +238,28 @@ export default function ChatPage() {
 
       {/* Input area */}
       <div style={styles.inputArea}>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!sending && input.trim()) handleSend();
+        <input
+          key={inputKey}
+          autoFocus
+          style={styles.textInput}
+          type="text"
+          placeholder="输入消息…"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+              e.preventDefault();
+              handleSend();
+            }
           }}
-          style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'center' }}
+        />
+        <button
+          style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
+          disabled={sending || !input.trim()}
+          onClick={() => handleSend()}
         >
-          <input
-            ref={inputRef}
-            autoFocus
-            data-chat-input={id}
-            style={styles.textInput}
-            type="text"
-            placeholder="输入消息…"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={sending || !input.trim()}
-            style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
-          >
-            发送
-          </button>
-        </form>
+          发送
+        </button>
       </div>
     </div>
   );
