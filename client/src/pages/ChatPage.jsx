@@ -71,10 +71,11 @@ export default function ChatPage() {
     if (!text || sending) return;
 
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
-    // Focus before any state change locks the input's focus
-    inputRef.current?.focus();
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]});
     setInput('');
+    // Focus input after React's synchronous commit of the state changes
+    // but BEFORE the async call starts
+    inputRef.current?.focus();
     setSending(true);
 
     try {
