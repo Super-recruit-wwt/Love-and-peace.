@@ -108,12 +108,10 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Make the button lose focus so input can get it
-    document.activeElement?.blur();
     setTimeout(() => {
       const el = document.querySelector('#chatInput');
-      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-    }, 0);
+      if (el) { el.focus(); el.setSelectionRange(0, 0); }
+    }, 50);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -275,7 +273,10 @@ export default function ChatPage() {
           onBlur={() => console.log('INPUT BLURRED, activeElement:', document.activeElement?.tagName)}
         />
         <button
-          style={styles.sendBtn}
+          style={{
+            ...styles.sendBtn,
+            pointerEvents: sending ? 'none' : 'auto',
+          }}
           onClick={() => handleSend()}
           disabled={sending || !input.trim()}
         >
