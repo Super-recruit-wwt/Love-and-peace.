@@ -109,16 +109,14 @@ export default function ChatPage() {
     setInput('');
 
     const keepFocus = () => {
-      // Request two animation frames to let React finish painting
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const el = document.querySelector('#chat-msg-input input');
-          el?.focus();
-        });
+        const el = document.querySelector('#chat-msg-input input');
+        el?.focus();
       });
     };
 
     setSending(true);
+    // Defer focus to next animation frame so React has a chance to paint
     keepFocus();
 
     try {
