@@ -66,16 +66,22 @@ export default function ChatPage() {
     }
   }, [loading]);
 
+  // Re-focus input when sending state goes from true→false
+  const prevSendingRef = useRef(false);
+  useEffect(() => {
+    if (prevSendingRef.current && !sending) {
+      inputRef.current?.focus();
+    }
+    prevSendingRef.current = sending;
+  }, [sending]);
+
   const handleSend = useCallback(async (msg) => {
     const text = msg || input.trim();
     if (!text || sending) return;
 
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
-    setMessages(prev => [...prev, userMsg]});
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
-    // Focus input after React's synchronous commit of the state changes
-    // but BEFORE the async call starts
-    inputRef.current?.focus();
     setSending(true);
 
     try {
