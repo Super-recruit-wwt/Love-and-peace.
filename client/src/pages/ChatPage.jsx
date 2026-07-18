@@ -122,7 +122,10 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      setTimeout(() => inputRef.current?.focus(), 0);
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 50);
     }
   }, [input, sending, id]);
 
