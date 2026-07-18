@@ -271,6 +271,7 @@ export default function ChatPage() {
           />
           <button
             type="submit"
+            disabled={sending || !input.trim()}
             style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
           >
             发送
