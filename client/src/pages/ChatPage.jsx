@@ -107,17 +107,15 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setSending(true);
 
-    const keepFocus = () => {
+    const refocus = () => {
       requestAnimationFrame(() => {
         const el = document.querySelector('#chat-msg-input input');
         el?.focus();
       });
     };
-
-    setSending(true);
-    // Defer focus to next animation frame so React has a chance to paint
-    keepFocus();
+    refocus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -127,18 +125,14 @@ export default function ChatPage() {
       }
       setMessages(prev => [...prev, ...newMessages]);
       lastInteractionRef.current = Date.now();
-      keepFocus();
+      refocus();
     } catch (err) {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
-      keepFocus();
+      refocus();
     } finally {
       setSending(false);
-      // Focus must happen after React has set button opacity back to 1
-      requestAnimationFrame(() => {
-        const el = document.querySelector('#chat-msg-input input');
-        el?.focus();
-      });
+      refocus();
     }
   }, [input, sending, id]);
 
