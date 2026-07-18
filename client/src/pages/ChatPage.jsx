@@ -354,6 +354,5 @@ const styles = {
     background: 'var(--bg-input)', border: '1px solid var(--border-color)',
     borderRadius: '24px', fontSize: '15px',
     color: 'var(--text-primary)', outline: 'none',
-    opacity: 0.4,
   },
 };
