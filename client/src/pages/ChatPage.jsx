@@ -50,6 +50,12 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    if (!sending && !loading) {
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
+  }, [sending, loading]);
+
   // Start proactive messaging when chat page is ready
   useEffect(() => {
     if (!loading && character) {
@@ -69,7 +75,7 @@ export default function ChatPage() {
   // Focus the input whenever it exists in the DOM
   useEffect(() => {
     inputRef.current?.focus();
-  });
+  }, [sending]);
 
   const handleSend = useCallback(async (msg) => {
     const text = msg || input.trim();
@@ -79,8 +85,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Keep focus: focus the input as the button becomes disabled
-    setTimeout(() => inputRef.current?.focus(), 0);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -95,8 +99,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Keep focus: the button becomes enabled again
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [input, sending, id]);
 
