@@ -65,6 +65,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      setTimeout(() => chatFormRef.current?.querySelector('input')?.focus(), 20);
     }
   }, [input, sending, id]);
 
