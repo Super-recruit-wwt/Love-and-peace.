@@ -129,7 +129,8 @@ export default function ChatPage() {
     } finally {
       setSending(false);
       // Focus again after async resolves and React re-renders
-      inputEl?.focus();
+      // Use setTimeout to defer past React's synchronous render commit
+      setTimeout(() => inputEl?.focus(), 0);
     }
   }, [input, sending, id]);
 
