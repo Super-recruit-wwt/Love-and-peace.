@@ -107,16 +107,18 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    setSending(true);
 
     const keepFocus = () => {
+      // Request two animation frames to let React finish painting
       requestAnimationFrame(() => {
-        const el = document.querySelector('#chat-msg-input input');
-        if (!el) return;
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
+        requestAnimationFrame(() => {
+          const el = document.querySelector('#chat-msg-input input');
+          el?.focus();
+        });
       });
     };
+
+    setSending(true);
     keepFocus();
 
     try {
