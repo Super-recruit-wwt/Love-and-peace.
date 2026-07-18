@@ -276,6 +276,7 @@ export default function ChatPage() {
       <div style={styles.inputArea} id="chat-msg-input">
         <input
           ref={inputRef}
+          autoFocus
           style={styles.textInput}
           type="text"
           placeholder="输入消息…"
