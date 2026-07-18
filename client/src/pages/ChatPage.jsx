@@ -14,7 +14,6 @@ export default function ChatPage() {
   const [typingText, setTypingText] = useState(''); // real-time AI preview
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const sendBtnRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
   const proactiveTimerRef = useRef(null);
 
@@ -108,10 +107,10 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    console.log('focus BEFORE send — inputRef:', inputRef.current);
     setSending(true);
     // Focus the input now while React ref is still valid
     inputRef.current?.focus();
-    sendBtnRef.current?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -126,7 +125,11 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      setTimeout(() => inputRef.current?.focus(), 10);
+      console.log('focus AFTER send — inputRef:', inputRef.current);
+      setTimeout(() => {
+        console.log('focus TIMEOUT — inputRef:', inputRef.current);
+        inputRef.current?.focus();
+      }, 10);
     }
   }, [input, sending, id]);
 
@@ -269,7 +272,6 @@ export default function ChatPage() {
           onKeyDown={handleKeyDown}
         />
         <button
-          ref={sendBtnRef}
           style={styles.sendBtn}
           onClick={() => handleSend()}
           disabled={sending || !input.trim()}
