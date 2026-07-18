@@ -91,6 +91,7 @@ export default function ChatPage() {
         el?.focus();
       }, 100);
     }
+  }, [input, sending, id]);
 
   const handleClearHistory = async () => {
     if (!confirm('确定清空所有对话记录吗？此操作不可恢复。')) return;
