@@ -64,10 +64,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      requestAnimationFrame(() => {
-        const inp = document.querySelector(`[data-cid="${id}"]`);
-        inp?.focus();
-      });
     }
   }, [input, sending, id]);
 
@@ -143,8 +139,8 @@ export default function ChatPage() {
 
       <div style={styles.inputArea}>
         <form onSubmit={e => { e.preventDefault(); handleSend(); }} style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'center' }}>
-          <input data-cid={id} autoFocus style={styles.textInput} type="text" placeholder="输入消息…" value={input} onChange={e => setInput(e.target.value)} />
-          <button style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn} disabled={sending || !input.trim()} type="submit">发送</button>
+          <input autoFocus style={styles.textInput} type="text" placeholder="输入消息…" value={input} onChange={e => setInput(e.target.value)} />
+          <button style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn} type="submit">发送</button>
         </form>
       </div>
     </div>
