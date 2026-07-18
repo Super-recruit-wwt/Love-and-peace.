@@ -183,3 +183,10 @@ const styles = {
   sendBtn: { padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' },
   sendBtnDisabled: { padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: '600', cursor: 'default', opacity: 0.4 },
 };
+
+// Add the typing bounce keyframes to the document
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = '@keyframes typingBounce{from{opacity:0.3;transform:translateY(0)}to{opacity:1;transform:translateY(-4px)}}';
+  document.head.appendChild(style);
+}
