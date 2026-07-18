@@ -71,10 +71,10 @@ export default function ChatPage() {
     if (!text || sending) return;
 
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
+    // Focus before any state change locks the input's focus
+    inputRef.current?.focus();
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    // Focus stays because button has no disabled attr — just visual style change
-    inputRef.current?.focus();
     setSending(true);
 
     try {
