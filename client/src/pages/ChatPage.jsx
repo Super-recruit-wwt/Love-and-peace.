@@ -109,12 +109,6 @@ export default function ChatPage() {
     setInput('');
     setSending(true);
 
-    // Focus immediately, before any async work changes the DOM
-    requestAnimationFrame(() => {
-      const el = document.querySelector('#chat-msg-input input');
-      el?.focus();
-    });
-
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
       const newMessages = [reply];
@@ -128,12 +122,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      setTimeout(() => {
-        requestAnimationFrame(() => {
-          const el = document.querySelector('#chat-msg-input input');
-          el?.focus();
-        });
-      }, 50);
     }
   }, [input, sending, id]);
 
@@ -284,7 +272,6 @@ export default function ChatPage() {
             pointerEvents: sending || !input.trim() ? 'none' : 'auto',
           }}
           onClick={(e) => { e.preventDefault(); if (!sending && input.trim()) handleSend(); }}
-          onMouseDown={(e) => e.preventDefault()}
         >
           发送
         </button>
