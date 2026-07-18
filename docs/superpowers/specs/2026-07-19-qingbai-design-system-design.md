@@ -2,7 +2,7 @@
 
 > 融合来源：`网址风格设计/网页设计方案.md`（宋瓷美学）× `网址风格设计/cohere/DESIGN.md`（Cohere 设计系统分析）
 > 融合策略：**宋瓷为魂，Cohere 为骨**
-> 文档版本 v1.0 ｜ 2026-07-19 ｜ 状态：已确认，待实施
+> 文档版本 v1.1 ｜ 2026-07-19 ｜ 状态：已实施（字体方案按实际落地更新）
 
 ---
 
@@ -78,9 +78,9 @@ Love and Peace 是 AI 情感陪伴聊天平台（产品架构见 `2026-07-18-lov
 
 | 角色 | 字体 | 加载方式 |
 |---|---|---|
-| 中文展示标题 | 思源宋体 Light/Regular（自托管子集，命名 `Qingbai Serif SC`） | 子集化 woff2，约 100–200KB，`font-display: swap` |
-| 西文展示 / 品牌字 | Space Grotesk | 拉丁子集 woff2，约 20KB |
-| 等宽标记 | IBM Plex Mono | 拉丁子集 woff2；承担 CohereMono 职能：时间戳、状态标签、日期分隔 |
+| 中文展示标题 | 思源宋体 Light/Regular（Noto Serif SC） | npm `@fontsource/noto-serif-sc`：按 unicode-range 切片的 woff2，浏览器只下载标题实际用到的切片 |
+| 西文展示 / 品牌字 | Space Grotesk | npm `@fontsource/space-grotesk` 拉丁子集 |
+| 等宽标记 | IBM Plex Mono | npm `@fontsource/ibm-plex-mono` 拉丁子集；承担 CohereMono 职能：时间戳、状态标签、日期分隔 |
 | 正文 / UI | 系统字体栈（PingFang SC / MiSans / HarmonyOS Sans / 微软雅黑） | 零加载 |
 
 后备栈：中文标题回退 `"Source Han Serif SC", "Noto Serif SC", "Songti SC", serif`。
@@ -108,11 +108,9 @@ Love and Peace 是 AI 情感陪伴聊天平台（产品架构见 `2026-07-18-lov
 
 层级由尺寸、留白与表面对比完成，不依赖粗体堆叠——Cohere 纪律。
 
-### 4.4 子集化工作流
+### 4.4 子集化工作流（实施更新）
 
-1. 用 `fontmin`（或 `subfont`/`glyphhanger`）从思源宋体提取实际用到的字符，生成 woff2 存入 `client/src/fonts/`。
-2. 收录范围：Landing 全部文案、各页面标题、六个预设角色名、品牌词。正文永不使用 webfont。
-3. 新增标题文案后，向子集脚本的字符清单补字并重新生成。字符清单维护在 `client/src/fonts/subset-chars.txt`。
+实际实现采用 `@fontsource/noto-serif-sc`（300/400 两个字重），其自带 Google Fonts 切片：每个字重拆为一百余个小 woff2，`@font-face` 以 unicode-range 声明，浏览器仅下载页面标题实际覆盖的切片。因此无需手工维护字符清单，新增标题文案自动生效。正文永不使用 webfont。字体在 `client/src/main.jsx` 顶部以 CSS import 引入。
 
 ## 5. 材质与质感
 
@@ -251,7 +249,7 @@ Love and Peace 是 AI 情感陪伴聊天平台（产品架构见 `2026-07-18-lov
 ## 11. 落地方式
 
 1. **重写 `client/src/index.css`**：写入上方全部 Token + 组件基类（`.btn-primary` `.btn-link` `.chip` `.card-porcelain` `.input-inkstone` `.row-hairline` `.band-dark` `.mono-label` 等）。主题只保留 `:root`（纸）与 `[data-theme="dark"]`（砚），删除 warm/green 两套变量。
-2. **新增 `client/src/fonts/`**：自托管三个 woff2（Qingbai Serif SC 子集、Space Grotesk、IBM Plex Mono），`@font-face` 声明 + `subset-chars.txt` 字符清单 + 子集化脚本说明。
+2. **字体依赖**：npm 安装 `@fontsource/noto-serif-sc` `@fontsource/space-grotesk` `@fontsource/ibm-plex-mono`，在 `main.jsx` 引入所需字重的 CSS。
 3. **逐页迁移**：各页面的 JS 内联样式对象迁移到 CSS 类（迁移顺序在实施计划中定义）。
 4. **设置页主题切换**：从四选一改为 纸/砚 双模式切换；数据库 `users.theme` 字段沿用，取值收敛为 `light`/`dark`（存量其他值按 `light` 处理）。
 5. **新增 Landing 路由 `/welcome`**：未登录访问 `/` 重定向到 `/welcome`。

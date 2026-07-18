@@ -63,25 +63,6 @@
   --dur-fast: 0.3s;
   --dur-med: 0.4s;
   --dur-slow: 0.6s;
-
-  /* ---- 旧变量桥接（迁移期间兼容，Phase 9 移除） ---- */
-  --bg-primary: var(--color-paper);
-  --bg-secondary: var(--color-porcelain);
-  --bg-input: var(--color-porcelain);
-  --text-primary: var(--color-ink);
-  --text-secondary: var(--color-ink-2);
-  --text-muted: var(--color-ink-3);
-  --border-color: var(--color-hairline);
-  --bubble-user: var(--color-lotus);
-  --bubble-user-text: #2B2B2B;
-  --bubble-ai: var(--color-porcelain);
-  --bubble-ai-text: var(--color-ink);
-  --accent: var(--color-celadon);
-  --accent-hover: var(--color-ink);
-  --danger: var(--color-seal);
-  --shadow-sm: var(--shadow-card);
-  --shadow-md: var(--shadow-float);
-  --radius-lg: var(--radius-md);
 }
 
 /* 砚（暗色模式）—— 不是反色，是墨的世界 */
