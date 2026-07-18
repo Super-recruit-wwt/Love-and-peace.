@@ -20,15 +20,6 @@ export default function ChatPage() {
     loadData();
   }, [id]);
 
-  // Auto-focus input when sending state changes
-  // Auto-focus input when sending completes (not on initial mount)
-  const didMount = useRef(false);
-  useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
-    if (!sending && !loading) {
-      inputRef.current?.focus();
-    }
-  }, [sending, loading]);
 
   const loadData = async () => {
     setLoading(true);
@@ -81,9 +72,8 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Focus the input BEFORE the async call so it stays focused
-    // even as the button becomes disabled
-    inputRef.current?.focus();
+    // Focus lock: the button uses pointer-events:none not disabled,
+    // so the input stays focused. No JS focus call needed here.
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -98,8 +88,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Focus after React commits setSending(false)
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [input, sending, id]);
 
