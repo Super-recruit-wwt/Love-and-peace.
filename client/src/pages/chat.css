@@ -167,7 +167,15 @@
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  max-width: 100%;
+  width: 100%;
+}
+
+.chat-msg.from-user .chat-msg-row {
+  justify-content: flex-end;
+}
+
+.chat-msg.from-ai .chat-msg-row {
+  justify-content: flex-start;
 }
 
 .chat-time {
