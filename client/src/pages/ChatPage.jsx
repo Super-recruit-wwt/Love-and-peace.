@@ -266,11 +266,8 @@ export default function ChatPage() {
           onKeyDown={handleKeyDown}
         />
         <button
-          style={{
-            ...styles.sendBtn,
-            opacity: sending || !input.trim() ? 0.4 : 1,
-            pointerEvents: sending || !input.trim() ? 'none' : 'auto',
-          }}
+          className={sending || !input.trim() ? 'sendBtn sending' : 'sendBtn'}
+          style={styles.sendBtn}
           onClick={(e) => { e.preventDefault(); if (!sending && input.trim()) handleSend(); }}
         >
           发送

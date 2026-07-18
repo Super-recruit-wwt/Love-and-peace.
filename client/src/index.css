@@ -95,3 +95,8 @@ a {
   color: var(--accent);
   text-decoration: none;
 }
+
+.sendBtn.sending {
+  opacity: 0.4;
+  pointer-events: none;
+}
