@@ -6,3 +6,8 @@ dist/
 *.db-wal
 server/data/
 同行参考/
+
+# Claude 会话规划文件
+task_plan.md
+findings.md
+progress.md

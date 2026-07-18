@@ -9,6 +9,11 @@ import HomePage from './pages/HomePage';
 import CreatePage from './pages/CreatePage';
 import ChatPage from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
+import '@fontsource/noto-serif-sc/300.css';
+import '@fontsource/noto-serif-sc/400.css';
+import '@fontsource/space-grotesk/400.css';
+import '@fontsource/space-grotesk/500.css';
+import '@fontsource/ibm-plex-mono/400.css';
 import './index.css';
 
 function ProtectedRoute({ children }) {
@@ -38,10 +43,11 @@ function LoadingScreen() {
 
 function App() {
   const { user } = useAuth();
-  const theme = user?.theme || 'light';
+  /* 主题收敛：仅 纸(light)/砚(dark) 两模式，历史值(warm/green)按 light 处理 */
+  const theme = user?.theme === 'dark' ? 'dark' : 'light';
 
   return (
-    <div data-theme={theme} style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+    <div data-theme={theme} className="app-canvas">
       <Routes>
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
