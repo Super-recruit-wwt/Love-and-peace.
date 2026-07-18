@@ -108,6 +108,8 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    // Focus the input now while React ref is still valid
+    inputRef.current?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
