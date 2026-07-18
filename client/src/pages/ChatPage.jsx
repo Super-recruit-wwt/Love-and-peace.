@@ -14,6 +14,7 @@ export default function ChatPage() {
   const [typingText, setTypingText] = useState(''); // real-time AI preview
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const sendBtnRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
   const proactiveTimerRef = useRef(null);
 
@@ -110,6 +111,7 @@ export default function ChatPage() {
     setSending(true);
     // Focus the input now while React ref is still valid
     inputRef.current?.focus();
+    sendBtnRef.current?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -267,6 +269,7 @@ export default function ChatPage() {
           onKeyDown={handleKeyDown}
         />
         <button
+          ref={sendBtnRef}
           style={styles.sendBtn}
           onClick={() => handleSend()}
           disabled={sending || !input.trim()}
