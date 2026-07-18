@@ -89,6 +89,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, ...newMessages]);
       lastInteractionRef.current = Date.now();
       refocus();
+    } catch (err) {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
       refocus();
