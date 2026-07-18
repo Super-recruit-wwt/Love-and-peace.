@@ -11,7 +11,6 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [inputKey, setInputKey] = useState(0);
   const messagesEndRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
   const proactiveTimerRef = useRef(null);
@@ -66,8 +65,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Remount input with autoFocus after each send
-      setInputKey(k => k + 1);
     }
   }, [input, sending, id]);
 
@@ -143,7 +140,7 @@ export default function ChatPage() {
 
       <div style={styles.inputArea}>
         <form ref={chatFormRef} onSubmit={e => { e.preventDefault(); handleSend(); }} style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'center' }}>
-          <input key={inputKey} autoFocus style={styles.textInput} type="text" placeholder="输入消息…按 Enter 发送" value={input} onChange={e => setInput(e.target.value)} />
+          <input autoFocus style={styles.textInput} type="text" placeholder="输入消息…按 Enter 发送" value={input} onChange={e => setInput(e.target.value)} />
           <button style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn} disabled={sending || !input.trim()} type="submit">发送</button>
         </form>
       </div>
