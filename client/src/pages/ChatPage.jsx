@@ -25,7 +25,7 @@ export default function ChatPage() {
     if (!sending) {
       inputRef.current?.focus();
     }
-  }, [sending]);
+  }, [sending, loading]);
 
   const loadData = async () => {
     setLoading(true);
