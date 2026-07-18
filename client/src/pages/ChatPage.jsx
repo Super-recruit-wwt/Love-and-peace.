@@ -20,10 +20,16 @@ export default function ChatPage() {
     loadData();
   }, [id]);
 
-  // Auto-focus input when sending completes
+  // Auto-focus input when sending completes — skip the very first render
+  const firstRender = useRef(true);
   useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
     if (!sending) {
-      inputRef.current?.focus();
+      // Small delay to let React finish the DOM commit
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [sending]);
 
