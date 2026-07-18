@@ -108,10 +108,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    setTimeout(() => {
-      const el = document.querySelector('#chatInput');
-      if (el) { el.focus(); el.setSelectionRange(0, 0); }
-    }, 50);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -259,24 +255,16 @@ export default function ChatPage() {
       {/* Input area */}
       <div style={styles.inputArea}>
         <input
-          key={`chat-input-${id}`}
-          id="chatInput"
           ref={inputRef}
-          autoFocus
           style={styles.textInput}
           type="text"
           placeholder="输入消息…"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => console.log('INPUT FOCUSED from:', document.activeElement?.tagName)}
-          onBlur={() => console.log('INPUT BLURRED, activeElement:', document.activeElement?.tagName)}
         />
         <button
-          style={{
-            ...styles.sendBtn,
-            pointerEvents: sending ? 'none' : 'auto',
-          }}
+          style={styles.sendBtn}
           onClick={() => handleSend()}
           disabled={sending || !input.trim()}
         >
