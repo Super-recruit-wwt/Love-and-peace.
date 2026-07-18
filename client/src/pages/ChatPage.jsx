@@ -132,7 +132,10 @@ export default function ChatPage() {
       refocus();
     } finally {
       setSending(false);
-      refocus();
+      // Force React to flush and then focus: set a dummy state value to
+      // trigger a re-render that restores the button, then focus after paint
+      setInput(prev => prev); // no-op render cycle
+      setTimeout(() => refocus(), 50);
     }
   }, [input, sending, id]);
 
