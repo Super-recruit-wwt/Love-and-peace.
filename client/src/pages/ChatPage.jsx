@@ -243,7 +243,7 @@ export default function ChatPage() {
           autoFocus
           style={styles.textInput}
           type="text"
-          placeholder="发送消息…"
+          placeholder="输入消息…按 Enter 发送"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={(e) => {
