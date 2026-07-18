@@ -66,6 +66,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Remount input with autoFocus after each send
       setInputKey(k => k + 1);
     }
   }, [input, sending, id]);
