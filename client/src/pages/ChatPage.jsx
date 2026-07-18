@@ -73,6 +73,8 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    // Focus stays because button has no disabled attr — just visual style change
+    inputRef.current?.focus();
     setSending(true);
 
     try {
@@ -88,11 +90,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Focus input after button is re-enabled
-      setTimeout(() => {
-        const inp = sendFormRef.current?.querySelector('input');
-        inp?.focus();
-      }, 50);
     }
   }, [input, sending, id]);
 
