@@ -285,8 +285,12 @@ export default function ChatPage() {
           onKeyDown={handleKeyDown}
         />
         <button
-          style={styles.sendBtn}
-          onMouseDown={(e) => { e.preventDefault(); handleSend(); }}
+          style={{
+            ...styles.sendBtn,
+            opacity: sending ? 0.5 : 1,
+            cursor: sending ? 'default' : 'pointer',
+          }}
+          onMouseDown={(e) => { e.preventDefault(); if (!sending) handleSend(); }}
         >
           发送
         </button>
