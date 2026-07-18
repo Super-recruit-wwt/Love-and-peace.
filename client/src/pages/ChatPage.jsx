@@ -71,6 +71,7 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    inputRef.current?.focus();
     setSending(true);
 
     try {
