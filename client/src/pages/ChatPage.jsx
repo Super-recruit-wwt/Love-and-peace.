@@ -104,10 +104,16 @@ export default function ChatPage() {
     const text = msg || input.trim();
     if (!text || sending) return;
 
+    // Keep a ref to the input element before anything else changes it
+    const inputEl = inputRef.current;
+
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+
+    // Focus immediately so the input doesn't lose it when button.disabled kicks in
+    inputEl?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -122,6 +128,8 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Focus again after async resolves and React re-renders
+      inputEl?.focus();
     }
   }, [input, sending, id]);
 
