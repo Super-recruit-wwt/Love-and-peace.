@@ -98,6 +98,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Remount form to trigger autoFocus on the fresh input element
       setFocusFlag(n => n + 1);
     }
   }, [input, sending, id]);
