@@ -1,0 +1,152 @@
+/* 创建页 —— 无框分区 + 蘸墨 chips + 细线维度行 */
+
+.create-wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-6) 24px var(--space-12);
+  min-height: 100vh;
+}
+
+.create-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.create-back {
+  background: none;
+  border: none;
+  padding: 4px;
+  font-size: 14px;
+  color: var(--color-ink-3);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-soft);
+}
+
+.create-back:hover {
+  color: var(--color-ink);
+}
+
+.create-title {
+  margin-top: 12px;
+  margin-bottom: var(--space-6);
+}
+
+.create-section {
+  margin-bottom: var(--space-6);
+}
+
+.create-section-title {
+  margin-bottom: 18px;
+}
+
+.create-hint {
+  font-size: 13px;
+  color: var(--color-ink-3);
+  margin-left: 10px;
+  letter-spacing: 0;
+  font-family: var(--font-body);
+}
+
+/* 名字：砚台式 + 宋体 */
+.create-name {
+  font-family: var(--font-display-cn);
+  font-size: 20px;
+  letter-spacing: var(--tracking-cn);
+  padding: 12px 2px;
+}
+
+.create-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* 性格基调：无框分区 */
+.create-archetypes {
+  border-top: 1px solid var(--color-hairline);
+}
+
+.create-archetype {
+  border-bottom: 1px solid var(--color-hairline);
+  padding: 18px 2px;
+}
+
+.create-archetype-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.create-archetype-name {
+  font-family: var(--font-display-cn);
+  font-size: 18px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink-2);
+  border-left: 2px solid transparent;
+  padding-left: 12px;
+  transition: color var(--dur-fast) var(--ease-soft),
+    border-color var(--dur-fast) var(--ease-soft);
+}
+
+.create-archetype.selected .create-archetype-name {
+  color: var(--color-ink);
+  border-left-color: var(--color-seal);
+}
+
+.create-archetype-mark {
+  margin-left: auto;
+  color: var(--color-ink-3);
+  font-size: 13px;
+}
+
+.create-archetype-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 0 6px 14px;
+}
+
+/* 维度：细线分隔行 */
+.create-dims {
+  border-top: 1px solid var(--color-hairline);
+}
+
+.create-dim {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  padding: 20px 2px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.create-dim-label {
+  flex: 0 0 88px;
+}
+
+.create-dim-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.create-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-6);
+}
+
+@media (max-width: 560px) {
+  .create-dim {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
