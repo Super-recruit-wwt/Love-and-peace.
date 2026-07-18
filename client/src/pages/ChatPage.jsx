@@ -122,10 +122,12 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Force re-focus after React re-render by waiting for the next microtask + a small delay
+      // Re-focus using double rAF to ensure React has flushed all DOM updates
       requestAnimationFrame(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
+        requestAnimationFrame(() => {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        });
       });
     }
   }, [input, sending, id]);
