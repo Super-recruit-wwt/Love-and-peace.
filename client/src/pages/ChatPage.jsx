@@ -271,8 +271,8 @@ export default function ChatPage() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => console.log('INPUT FOCUSED')}
-          onBlur={() => console.log('INPUT BLURRED')}
+          onFocus={() => console.log('INPUT FOCUSED from:', document.activeElement?.tagName)}
+          onBlur={() => console.log('INPUT BLURRED, activeElement:', document.activeElement?.tagName)}
         />
         <button
           style={styles.sendBtn}
