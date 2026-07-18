@@ -86,10 +86,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      setTimeout(() => {
-        const el = document.querySelector(`[data-chat-input="${id}"]`);
-        el?.focus();
-      }, 100);
     }
   }, [input, sending, id]);
 
