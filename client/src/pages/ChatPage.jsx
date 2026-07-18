@@ -265,10 +265,13 @@ export default function ChatPage() {
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           readOnly={sending}
-          style={{
-            ...styles.textInput,
-            opacity: sending ? 0.6 : 1,
+          ref={(el) => {
+            inputRef.current = el;
+            if (el) {
+              el.style.opacity = sending ? '0.6' : '1';
+            }
           }}
+          style={styles.textInput}
         />
         <button
           style={styles.sendBtn}
