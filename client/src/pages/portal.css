@@ -1,0 +1,111 @@
+/* Portal 门户 —— 宋体问候 + 板块瓷面卡 */
+
+.portal-wrap {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: var(--space-8) 24px var(--space-12);
+  min-height: 100vh;
+}
+
+.portal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: var(--space-8);
+}
+
+.portal-greeting {
+  margin-top: 10px;
+}
+
+.portal-sub {
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--color-ink-2);
+}
+
+.portal-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.portal-logout {
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  font-size: 14px;
+  color: var(--color-ink-3);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-soft);
+}
+
+.portal-logout:hover {
+  color: var(--color-ink);
+}
+
+.portal-section-title {
+  margin-top: 10px;
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.portal-card {
+  padding: 28px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.portal-card-icon {
+  color: var(--color-celadon);
+  margin-bottom: 4px;
+}
+
+.portal-card-name {
+  font-family: var(--font-display-cn);
+  font-size: 19px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink);
+}
+
+.portal-card-desc {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--color-ink-2);
+}
+
+/* 待开板块：未上釉的素坯 */
+.portal-card-pending {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 28px 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.portal-card-pending-name {
+  font-family: var(--font-display-cn);
+  font-size: 17px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink-3);
+}
+
+@media (max-width: 640px) {
+  .portal-head {
+    flex-direction: column;
+  }
+
+  .portal-actions {
+    padding-top: 0;
+  }
+}
