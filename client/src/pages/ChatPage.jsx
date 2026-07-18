@@ -86,6 +86,12 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Focus the input after the reply is saved and state settles.
+      // The disabled button redirects focus; we bring it back here.
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-chat-input="${id}"]`);
+        el?.focus();
+      });
     }
   }, [input, sending, id]);
 
@@ -259,6 +265,7 @@ export default function ChatPage() {
           />
           <button
             type="submit"
+            disabled={sending || !input.trim()}
             style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
           >
             发送
