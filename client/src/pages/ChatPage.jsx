@@ -11,12 +11,11 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [focusFlag, setFocusFlag] = useState(0);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
-  // Send on Enter without losing focus
   const proactiveTimerRef = useRef(null);
-  const sendFormRef = useRef(null);
 
   useEffect(() => {
     loadData();
@@ -99,6 +98,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      setFocusFlag(n => n + 1);
     }
   }, [input, sending, id]);
 
@@ -254,7 +254,7 @@ export default function ChatPage() {
       <div style={styles.inputArea}>
         <form
           ref={sendFormRef}
-          key={`chat-form-${id}`}
+          key={`chat-form-${id}-${focusFlag}`}
           onSubmit={(e) => {
             e.preventDefault();
             if (!sending && input.trim()) handleSend();
