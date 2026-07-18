@@ -72,8 +72,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Focus lock: the button uses pointer-events:none not disabled,
-    // so the input stays focused. No JS focus call needed here.
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
