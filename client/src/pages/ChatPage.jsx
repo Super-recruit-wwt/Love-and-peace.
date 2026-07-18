@@ -112,7 +112,7 @@ export default function ChatPage() {
     setInput('');
     setSending(true);
 
-    // Focus immediately so the input doesn't lose it when button.disabled kicks in
+    // Focus immediately
     setTimeout(() => inputEl?.focus(), 0);
 
     try {
@@ -128,12 +128,10 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Keep trying to focus — the async chat response triggers state updates
-      // that may re-render and steal focus at unpredictable times
-      const attempts = [50, 150, 350, 700];
-      for (const delay of attempts) {
-        setTimeout(() => inputEl?.focus(), delay);
-      }
+      const el = inputEl;
+      // Fire-and-forget: try to focus after each likely re-render trigger
+      setTimeout(() => el?.focus(), 10);
+      setTimeout(() => el?.focus(), 100);
     }
   }, [input, sending, id]);
 
