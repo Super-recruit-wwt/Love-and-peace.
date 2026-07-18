@@ -86,7 +86,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Re-focus the input after async completes
       setTimeout(() => {
         const el = document.querySelector(`[data-chat-input="${id}"]`);
         el?.focus();
