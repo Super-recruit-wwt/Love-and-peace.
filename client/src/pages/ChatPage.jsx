@@ -104,16 +104,20 @@ export default function ChatPage() {
     const text = msg || input.trim();
     if (!text || sending) return;
 
-    // Keep a ref to the input element before anything else changes it
-    const inputEl = inputRef.current;
-
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
 
-    // Focus immediately
-    setTimeout(() => inputEl?.focus(), 0);
+    const keepFocus = () => {
+      requestAnimationFrame(() => {
+        const el = document.querySelector('#chat-msg-input input');
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      });
+    };
+    keepFocus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -123,15 +127,14 @@ export default function ChatPage() {
       }
       setMessages(prev => [...prev, ...newMessages]);
       lastInteractionRef.current = Date.now();
+      keepFocus();
     } catch (err) {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
+      keepFocus();
     } finally {
       setSending(false);
-      const el = inputEl;
-      // Fire-and-forget: try to focus after each likely re-render trigger
-      setTimeout(() => el?.focus(), 10);
-      setTimeout(() => el?.focus(), 100);
+      keepFocus();
     }
   }, [input, sending, id]);
 
@@ -268,7 +271,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input area */}
-      <div style={styles.inputArea}>
+      <div style={styles.inputArea} id="chat-msg-input">
         <input
           ref={inputRef}
           style={styles.textInput}
