@@ -86,10 +86,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Re-focus after React commits
-      requestAnimationFrame(() => {
-        document.querySelector(`[data-chat-input="${id}"]`)?.focus();
-      });
     }
   }, [input, sending, id]);
 
