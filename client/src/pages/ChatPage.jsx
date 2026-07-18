@@ -108,6 +108,8 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    // Make the button lose focus so input can get it
+    document.activeElement?.blur();
     setTimeout(() => {
       const el = document.querySelector('#chatInput');
       if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
