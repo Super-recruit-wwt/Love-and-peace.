@@ -107,10 +107,7 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    // Don't immediately setSending(true) — let the input keep focus first.
-    // Use requestAnimationFrame to defer the sending state change, giving
-    // the browser time to process setInput('') and keep the input focused.
-    requestAnimationFrame(() => setSending(true));
+    setSending(true);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
