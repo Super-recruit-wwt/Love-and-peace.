@@ -185,12 +185,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div style={styles.container} onClick={e => {
-      // Clicking anywhere outside the input focuses it
-      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
-        inputRef.current?.focus();
-      }
-    }}>
+    <div style={styles.container}>
       {/* Top bar */}
       <div style={styles.topbar}>
         <Link to="/chat" style={styles.backBtn}>← 伙伴</Link>
