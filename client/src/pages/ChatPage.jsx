@@ -109,13 +109,11 @@ export default function ChatPage() {
     setInput('');
     setSending(true);
 
-    const refocus = () => {
-      requestAnimationFrame(() => {
-        const el = document.querySelector('#chat-msg-input input');
-        el?.focus();
-      });
-    };
-    refocus();
+    // Focus immediately, before any async work changes the DOM
+    requestAnimationFrame(() => {
+      const el = document.querySelector('#chat-msg-input input');
+      el?.focus();
+    });
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -125,17 +123,17 @@ export default function ChatPage() {
       }
       setMessages(prev => [...prev, ...newMessages]);
       lastInteractionRef.current = Date.now();
-      refocus();
     } catch (err) {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
-      refocus();
     } finally {
       setSending(false);
-      // Force React to flush and then focus: set a dummy state value to
-      // trigger a re-render that restores the button, then focus after paint
-      setInput(prev => prev); // no-op render cycle
-      setTimeout(() => refocus(), 50);
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          const el = document.querySelector('#chat-msg-input input');
+          el?.focus();
+        });
+      }, 50);
     }
   }, [input, sending, id]);
 
