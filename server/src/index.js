@@ -4,9 +4,9 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { db, init: initDb } = require('./src/db');
-const { signToken, authMiddleware } = require('./src/auth');
-const { buildSystemPrompt, chat } = require('./src/llm');
+const { db, init: initDb } = require('./db');
+const { signToken, authMiddleware } = require('./auth');
+const { buildSystemPrompt, chat } = require('./llm');
 
 // Ensure data directory exists
 const dataDir = path.join(__dirname, 'data');
@@ -321,6 +321,63 @@ app.delete('/api/characters/:id/messages', authMiddleware, (req, res) => {
   } catch (err) {
     console.error('Clear messages error:', err);
     res.status(500).json({ error: '清空对话失败' });
+  }
+});
+
+// Proactive message — character initiates conversation
+app.post('/api/characters/:id/proactive', authMiddleware, async (req, res) => {
+  try {
+    const char = db.prepare(
+      'SELECT * FROM characters WHERE id = ? AND user_id = ?'
+    ).get(req.params.id, req.userId);
+
+    if (!char) {
+      return res.status(404).json({ error: '角色不存在' });
+    }
+
+    // Get recent messages to check if it's been quiet
+    const recentMessages = db.prepare(
+      'SELECT role, content, created_at FROM messages WHERE character_id = ? ORDER BY created_at DESC LIMIT 20'
+    ).all(char.id).reverse();
+
+    // Build proactive prompt
+    const proactivePrompt = `${char.system_prompt}
+
+现在是实时对话场景。刚才双方都没有说话，你需要主动发起一条消息来继续对话。这条消息应该：
+1. 自然随意，像是在真实场景中忽然想到什么要说
+2. 可能是分享一件小事、一个想法、一句关心，或者看到的有趣的东西
+3. 不要总以"对了"、"突然想到"开头，要多样化的开场
+4. 简短自然，1-3 句话即可
+5. 要符合你的角色性格设定
+6. 如果你之前刚说过话，这次可以换个话题或稍微安静的方式出现`;
+
+    const history = recentMessages.map(m => ({
+      role: m.role,
+      content: m.content,
+    }));
+    history.push({ role: 'user', content: '（沉默了一会儿）' });
+
+    let reply;
+    try {
+      reply = await chat(proactivePrompt, history);
+    } catch (llmErr) {
+      console.error('Proactive LLM error:', llmErr);
+      return res.json(null); // Silent fail — frontend will ignore null
+    }
+
+    // Save proactive message
+    const result = db.prepare('INSERT INTO messages (character_id, role, content) VALUES (?, ?, ?)')
+      .run(char.id, 'assistant', reply);
+
+    res.json({
+      id: result.lastInsertRowid,
+      role: 'assistant',
+      content: reply,
+      created_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('Proactive chat error:', err);
+    res.json(null);
   }
 });
 

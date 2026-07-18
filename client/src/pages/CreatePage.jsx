@@ -187,7 +187,7 @@ export default function CreatePage() {
                     }}
                     onClick={() => toggleArchetype(arch.id)}
                   >
-                    <div style={styles.archetypeName} {arch.name}>{arch.name}</div>
+                    <div style={styles.archetypeName}>{arch.name}</div>
                     {selected && (
                       <div style={styles.traitsRow}>
                         {arch.traits.map(trait => (

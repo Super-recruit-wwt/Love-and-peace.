@@ -13,6 +13,44 @@ export default function ChatPage() {
   const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const lastInteractionRef = useRef(Date.now());
+  const proactiveTimerRef = useRef(null);
+
+  // Schedule random proactive check
+  const scheduleProactive = useCallback(() => {
+    if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
+
+    // Random delay between 2 and 8 minutes (in ms)
+    const minDelay = 120000;
+    const maxDelay = 480000;
+    const delay = minDelay + Math.random() * (maxDelay - minDelay);
+
+    proactiveTimerRef.current = setTimeout(async () => {
+      // Check if user has been idle (no messages sent) since last interaction
+      const idleTime = Date.now() - lastInteractionRef.current;
+      if (idleTime < minDelay) {
+        // User interacted recently, reschedule
+        scheduleProactive();
+        return;
+      }
+
+      try {
+        const result = await post(`/characters/${id}/proactive`, {});
+        if (result && result.content) {
+          setMessages(prev => {
+            // Avoid duplicate messages
+            if (prev.length > 0 && prev[prev.length - 1].id === result.id) return prev;
+            return [...prev, result];
+          });
+        }
+      } catch (_) {
+        // Silent fail
+      }
+
+      // Reschedule for next random interval
+      scheduleProactive();
+    }, delay);
+  }, [id]);
 
   useEffect(() => {
     loadData();
@@ -45,6 +83,16 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Start proactive messaging when chat page is ready
+  useEffect(() => {
+    if (!loading && character) {
+      scheduleProactive();
+    }
+    return () => {
+      if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
+    };
+  }, [loading, character, scheduleProactive]);
+
   useEffect(() => {
     if (!loading && character && messages.length === 0) {
       setInput('你好呀～');
@@ -63,6 +111,7 @@ export default function ChatPage() {
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
       setMessages(prev => [...prev, reply]);
+      lastInteractionRef.current = Date.now();
     } catch (err) {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
