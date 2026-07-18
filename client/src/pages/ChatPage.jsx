@@ -145,8 +145,7 @@ export default function ChatPage() {
       </div>
     </div>
   );
-}
-const moodEmoji = { joyful: '😊', content: '😌', calm: '😶', excited: '🤩', anxious: '😰', melancholic: '😔', confident: '💪' };
+}const moodEmoji = { joyful: '😊', content: '😌', calm: '😶', excited: '🤩', anxious: '😰', melancholic: '😔', confident: '💪' };
 
 function charAvatarGradient(color) {
   const g = { '#f472b6': 'linear-gradient(135deg, #f472b6, #fb7185)', '#fbbf24': 'linear-gradient(135deg, #fbbf24, #f59e0b)', '#6366f1': 'linear-gradient(135deg, #6366f1, #8b5cf6)', '#f87171': 'linear-gradient(135deg, #f87171, #ef4444)', '#818cf8': 'linear-gradient(135deg, #818cf8, #6366f1)', '#fb923c': 'linear-gradient(135deg, #fb923c, #f97316)' };
