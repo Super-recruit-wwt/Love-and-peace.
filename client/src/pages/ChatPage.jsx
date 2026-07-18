@@ -122,10 +122,11 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Focus must happen after React's DOM commit. 100ms is imperceptible
+      // but long enough for React to have removed .sending from the button.
       setTimeout(() => {
-        const el = document.querySelector('#chat-msg-input input');
-        if (el) el.focus();
-      }, 0);
+        inputRef.current?.focus();
+      }, 100);
     }
   }, [input, sending, id]);
 
