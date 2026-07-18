@@ -108,7 +108,7 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Force focus to input: tabIndex ensures it's focusable, querySelector finds it
+    // Focus immediately after React commits sending=true
     setTimeout(() => {
       const el = document.querySelector('#chat-msg-input input');
       if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
@@ -127,6 +127,13 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Refocus after React has committed setSending(false) and restored button
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = document.querySelector('#chat-msg-input input');
+          el?.focus();
+        });
+      });
     }
   }, [input, sending, id]);
 
