@@ -122,10 +122,20 @@ export default function ChatPage() {
           <div style={styles.emptyState}><div style={styles.emptyIcon}>💬</div><div style={styles.emptyText}>发送第一条消息，开始和 {character?.name} 聊天吧</div></div>
         )}
         {messages.map(msg => (
-          <div key={msg.id} style={{ ...styles.messageRow, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            {msg.role !== 'user' && <div style={{ ...styles.avatarDot, background: charAvatarGradient(character?.avatar_color), marginRight: '8px' }} />}
-            <div style={{ ...styles.bubble, background: msg.role === 'user' ? 'var(--bubble-user)' : 'var(--bubble-ai)', color: msg.role === 'user' ? 'var(--bubble-user-text)' : 'var(--bubble-ai-text)', borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px' }}>{msg.content}</div>
-            {msg.role === 'user' && <div style={{ ...styles.avatarDot, background: 'var(--accent)', marginLeft: '8px' }} />}
+          <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '4px' }}>
+            <div style={{ ...styles.messageRow, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              {msg.role !== 'user' && <div style={{ ...styles.avatarDot, background: charAvatarGradient(character?.avatar_color), marginRight: '8px' }} />}
+              <div style={{
+                ...styles.bubble,
+                background: msg.role === 'user' ? 'var(--bubble-user)' : 'var(--bubble-ai)',
+                color: msg.role === 'user' ? 'var(--bubble-user-text)' : 'var(--bubble-ai-text)',
+                borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'
+              }}>{msg.content}</div>
+              {msg.role === 'user' && <div style={{ ...styles.avatarDot, background: 'var(--accent)', marginLeft: '8px' }} />}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: msg.role !== 'user' ? '44px' : '0', paddingRight: msg.role === 'user' ? '44px' : '0' }}>
+              {formatTime(msg.created_at)}
+            </div>
           </div>
         ))}
         {sending && (
@@ -148,6 +158,18 @@ export default function ChatPage() {
 }
 
 const moodEmoji = { joyful: '😊', content: '😌', calm: '😶', excited: '🤩', anxious: '😰', melancholic: '😔', confident: '💪' };
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // If same day, just show time
+  if (d.toDateString() === now.toDateString()) return time;
+  // Else show month-day + time
+  return `${d.getMonth() + 1}/${d.getDate()} ${time}`;
+}
 
 function charAvatarGradient(color) {
   const g = { '#f472b6': 'linear-gradient(135deg, #f472b6, #fb7185)', '#fbbf24': 'linear-gradient(135deg, #fbbf24, #f59e0b)', '#6366f1': 'linear-gradient(135deg, #6366f1, #8b5cf6)', '#f87171': 'linear-gradient(135deg, #f87171, #ef4444)', '#818cf8': 'linear-gradient(135deg, #818cf8, #6366f1)', '#fb923c': 'linear-gradient(135deg, #fb923c, #f97316)' };
