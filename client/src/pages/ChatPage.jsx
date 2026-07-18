@@ -108,10 +108,17 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    // Refocus the input field after sending
+    inputRef.current?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
-      setMessages(prev => [...prev, reply]);
+      const newMessages = [reply];
+      // If LLM returned multiple paragraphs, append them as separate messages
+      if (reply.more && reply.more.length > 0) {
+        newMessages.push(...reply.more);
+      }
+      setMessages(prev => [...prev, ...newMessages]);
       lastInteractionRef.current = Date.now();
     } catch (err) {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };

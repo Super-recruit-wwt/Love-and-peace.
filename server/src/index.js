@@ -278,7 +278,7 @@ app.post('/api/characters/:id/chat', authMiddleware, async (req, res) => {
     const msgCount = db.prepare('SELECT COUNT(*) as count FROM messages WHERE character_id = ?').get(char.id).count;
     logGroundTruth(char.id, 'user', message.trim(), msgCount);
 
-    // Get recent conversation history
+    // Get recent conversation history (INCLUDE the user's just-saved message)
     const recentMessages = db.prepare(
       'SELECT role, content FROM messages WHERE character_id = ? ORDER BY created_at DESC LIMIT 30'
     ).all(char.id).reverse();
@@ -289,26 +289,53 @@ app.post('/api/characters/:id/chat', authMiddleware, async (req, res) => {
     emotionalState = applyStimulus(emotionalState, stimulus);
     upsertEmotionalState(char.id, emotionalState);
 
-    // Call LLM
+    // Get condensed memories for context
+    const condensed = getCondensedMemories(char.id, 3);
+    const condensedContext = condensed.length > 0
+      ? condensed.map(m => m.summary).join('\n')
+      : '';
+
+    // Call LLM with FULL history (including user's latest message)
     let reply;
     try {
-      const history = recentMessages.slice(0, -1).map(m => ({
+      const history = recentMessages.map(m => ({
         role: m.role,
         content: m.content,
       }));
 
-      reply = await chat(char.system_prompt, history, emotionalState);
+      // Build context-enhanced system prompt with condensed memories
+      let contextPrompt = char.system_prompt;
+      if (condensedContext) {
+        contextPrompt += `\n\n## 过往记忆\n以下是此前对话中值得记住的事情（以你的视角）：\n${condensedContext}`;
+      }
+
+      reply = await chat(contextPrompt, history, emotionalState);
     } catch (llmErr) {
       console.error('LLM error:', llmErr);
       reply = '抱歉，我现在有点累，稍等一下再来找我聊好吗？';
     }
 
-    // Save AI reply
-    const result = db.prepare('INSERT INTO messages (character_id, role, content) VALUES (?, ?, ?)')
-      .run(char.id, 'assistant', reply);
+    // Save AI reply (split by double newline into multiple messages if applicable)
+    const paragraphs = reply.split(/\n\s*\n/).filter(p => p.trim());
+    const savedReplies = [];
 
-    // Log ground truth for AI reply
-    logGroundTruth(char.id, 'assistant', reply, msgCount + 1);
+    for (const para of paragraphs) {
+      const result = db.prepare('INSERT INTO messages (character_id, role, content) VALUES (?, ?, ?)')
+        .run(char.id, 'assistant', para.trim());
+      savedReplies.push({
+        id: result.lastInsertRowid,
+        role: 'assistant',
+        content: para.trim(),
+        created_at: new Date().toISOString(),
+      });
+      // Log each paragraph to ground truth
+      logGroundTruth(char.id, 'assistant', para.trim(), msgCount + 1);
+    }
+
+    // Only return the first paragraph immediately for responsive UX,
+    // but signal to frontend that there are more
+    const firstReply = savedReplies[0];
+    const additionalReplies = savedReplies.slice(1);
 
     // Memory compression check — every 10 messages, compress and decay
     if ((msgCount + 1) % 10 === 0) {
@@ -324,10 +351,11 @@ app.post('/api/characters/:id/chat', authMiddleware, async (req, res) => {
     }
 
     res.json({
-      id: result.lastInsertRowid,
+      id: firstReply.id,
       role: 'assistant',
-      content: reply,
-      created_at: new Date().toISOString(),
+      content: firstReply.content,
+      created_at: firstReply.created_at,
+      more: additionalReplies.length > 0 ? additionalReplies : undefined,
     });
   } catch (err) {
     console.error('Chat error:', err);
