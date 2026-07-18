@@ -86,8 +86,12 @@ export default function ChatPage() {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
     } finally {
+      const el = inputRef.current;
       setSending(false);
-      setTimeout(() => inputRef.current?.focus(), 0);
+      // Fire focus attempts at multiple delays to catch the right React commit moment
+      setTimeout(() => el?.focus(), 0);
+      setTimeout(() => el?.focus(), 50);
+      setTimeout(() => el?.focus(), 150);
     }
   }, [input, sending, id]);
 
