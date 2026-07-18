@@ -129,7 +129,7 @@ export default function ChatPage() {
     } finally {
       // Focus again after async resolves and React re-renders
       setSending(false);
-      setTimeout(() => inputEl?.focus(), 50);
+      setTimeout(() => inputEl?.focus(), 100);
     }
   }, [input, sending, id]);
 
