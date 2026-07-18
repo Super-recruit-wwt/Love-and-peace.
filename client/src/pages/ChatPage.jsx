@@ -71,8 +71,10 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    // Capture ref before any state change that could trigger re-render
+    const el = inputRef.current;
     setSending(true);
-    inputRef.current?.focus();
+    el?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
