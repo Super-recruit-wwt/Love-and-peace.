@@ -122,6 +122,10 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      setTimeout(() => {
+        const el = document.querySelector('#chat-msg-input input');
+        el?.focus();
+      }, 200);
     }
   }, [input, sending, id]);
 
