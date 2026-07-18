@@ -108,6 +108,11 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    // Force focus to input: tabIndex ensures it's focusable, querySelector finds it
+    setTimeout(() => {
+      const el = document.querySelector('#chat-msg-input input');
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }, 0);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -256,7 +261,7 @@ export default function ChatPage() {
       <div style={styles.inputArea} id="chat-msg-input">
         <input
           ref={inputRef}
-          autoFocus
+          tabIndex={0}
           autoFocus
           style={styles.textInput}
           type="text"
