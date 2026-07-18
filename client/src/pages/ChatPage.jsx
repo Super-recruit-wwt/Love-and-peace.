@@ -49,12 +49,6 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    if (!sending && !loading) {
-      setTimeout(() => inputRef.current?.focus(), 10);
-    }
-  }, [sending, loading]);
-
   // Start proactive messaging when chat page is ready
   useEffect(() => {
     if (!loading && character) {
@@ -70,11 +64,6 @@ export default function ChatPage() {
       setInput('你好呀～');
     }
   }, [loading]);
-
-  // Focus the input whenever it exists in the DOM
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [sending]);
 
   const handleSend = useCallback(async (msg) => {
     const text = msg || input.trim();
