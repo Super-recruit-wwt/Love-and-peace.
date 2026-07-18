@@ -14,7 +14,9 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
+  // Send on Enter without losing focus
   const proactiveTimerRef = useRef(null);
+  const sendFormRef = useRef(null);
 
   useEffect(() => {
     loadData();
@@ -86,6 +88,11 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Focus input after button is re-enabled
+      setTimeout(() => {
+        const inp = sendFormRef.current?.querySelector('input');
+        inp?.focus();
+      }, 50);
     }
   }, [input, sending, id]);
 
@@ -240,6 +247,7 @@ export default function ChatPage() {
       {/* Input area */}
       <div style={styles.inputArea}>
         <form
+          ref={sendFormRef}
           key={`chat-form-${id}`}
           onSubmit={(e) => {
             e.preventDefault();
@@ -259,7 +267,6 @@ export default function ChatPage() {
           />
           <button
             type="submit"
-            disabled={sending || !input.trim()}
             style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
           >
             发送
