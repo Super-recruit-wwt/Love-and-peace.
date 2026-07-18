@@ -141,7 +141,7 @@ export default function ChatPage() {
     if (!confirm('确定删除这个角色吗？所有对话记录也将被删除。')) return;
     try {
       await del(`/characters/${id}`);
-      navigate('/');
+      navigate('/chat');
     } catch (err) {
       alert(err.message);
     }
@@ -159,7 +159,7 @@ export default function ChatPage() {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.loadingText}>{error}</div>
-        <Link to="/" style={styles.backLink}>返回首页</Link>
+        <Link to="/chat" style={styles.backLink}>返回角色列表</Link>
       </div>
     );
   }
@@ -168,7 +168,7 @@ export default function ChatPage() {
     <div style={styles.container}>
       {/* Top bar */}
       <div style={styles.topbar}>
-        <Link to="/" style={styles.backBtn}>← 伙伴</Link>
+        <Link to="/chat" style={styles.backBtn}>← 伙伴</Link>
         <div style={styles.charInfo}>
           <div style={{
             ...styles.avatarDot,

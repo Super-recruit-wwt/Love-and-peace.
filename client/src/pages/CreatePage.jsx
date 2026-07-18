@@ -125,7 +125,7 @@ export default function CreatePage() {
     <div style={styles.container}>
       {/* Top bar */}
       <div style={styles.topbar}>
-        <button onClick={() => navigate('/')} style={styles.backBtn}>← 返回</button>
+        <button onClick={() => navigate('/chat')} style={styles.backBtn}>← 返回</button>
         <div style={styles.steps}>
           <div style={{ ...styles.stepDot, background: step >= 1 ? 'var(--accent)' : 'var(--border-color)' }} />
           <div style={{ ...styles.stepLine, background: step >= 2 ? 'var(--accent)' : 'var(--border-color)' }} />
