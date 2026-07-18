@@ -269,6 +269,7 @@ export default function ChatPage() {
         <input
           ref={inputRef}
           autoFocus
+          autoFocus
           style={styles.textInput}
           type="text"
           placeholder="输入消息…"
