@@ -122,7 +122,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      setTimeout(() => inputRef.current?.focus(), 10);
+      setTimeout(() => document.getElementById('chatInput')?.focus(), 10);
     }
   }, [input, sending, id]);
 
@@ -256,6 +256,7 @@ export default function ChatPage() {
       {/* Input area */}
       <div style={styles.inputArea}>
         <input
+          id="chatInput"
           ref={inputRef}
           style={styles.textInput}
           type="text"
