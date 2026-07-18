@@ -108,10 +108,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Not trying programmatic focus — the input never actually loses
-    // focus because the button uses pointer-events:none instead of disabled.
-    // React re-renders don't change input focus as long as the input
-    // element itself doesn't unmount or get modified.
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
