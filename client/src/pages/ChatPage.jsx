@@ -11,7 +11,6 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [focusFlag, setFocusFlag] = useState(0);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
@@ -87,8 +86,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Remount form to trigger autoFocus on the fresh input element
-      setFocusFlag(n => n + 1);
     }
   }, [input, sending, id]);
 
@@ -243,8 +240,6 @@ export default function ChatPage() {
       {/* Input area */}
       <div style={styles.inputArea}>
         <form
-          ref={sendFormRef}
-          key={`chat-form-${id}-${focusFlag}`}
           onSubmit={(e) => {
             e.preventDefault();
             if (!sending && input.trim()) handleSend();
