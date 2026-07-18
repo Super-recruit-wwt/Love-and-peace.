@@ -21,16 +21,12 @@ export default function ChatPage() {
     loadData();
   }, [id]);
 
+  // Auto-focus input when sending completes — only after initial load
   useEffect(() => {
-    loadData();
-  }, [id]);
-
-  // Auto-focus input when sending completes
-  useEffect(() => {
-    if (!sending) {
+    if (!loading && !sending) {
       inputRef.current?.focus();
     }
-  }, [sending]);
+  }, [sending, loading]);
 
   const loadData = async () => {
     setLoading(true);
