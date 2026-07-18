@@ -88,6 +88,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      el?.focus();
     }
   }, [input, sending, id]);
 
