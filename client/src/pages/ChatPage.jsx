@@ -79,6 +79,8 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
+    // Keep focus: focus the input as the button becomes disabled
+    setTimeout(() => inputRef.current?.focus(), 0);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -93,6 +95,8 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Keep focus: the button becomes enabled again
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [input, sending, id]);
 
