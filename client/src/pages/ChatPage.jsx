@@ -113,7 +113,7 @@ export default function ChatPage() {
     setSending(true);
 
     // Focus immediately so the input doesn't lose it when button.disabled kicks in
-    inputEl?.focus();
+    setTimeout(() => inputEl?.focus(), 0);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
