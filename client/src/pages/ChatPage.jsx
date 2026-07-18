@@ -255,6 +255,7 @@ export default function ChatPage() {
           placeholder="输入消息…按 Enter 发送"
           value={input}
           onChange={e => setInput(e.target.value)}
+        />
         <button
           style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
           disabled={sending || !input.trim()}
