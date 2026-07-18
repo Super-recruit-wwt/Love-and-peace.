@@ -108,7 +108,8 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    inputRef.current?.focus();
+    // Force React to re-mount the input so autofocus fires on the fresh element
+    setTimeout(() => inputRef.current?.focus(), 0);
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
@@ -256,7 +257,9 @@ export default function ChatPage() {
       {/* Input area */}
       <div style={styles.inputArea}>
         <input
+          key={`chat-input-${id}`}
           ref={inputRef}
+          autoFocus
           style={styles.textInput}
           type="text"
           placeholder="输入消息…"
