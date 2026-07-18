@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { get, post, del } from '../api';
+import { qbAvatarColor } from '../avatarColors';
+import './chat.css';
 
 export default function ChatPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [character, setCharacter] = useState(null);
+  const [allChars, setAllChars] = useState([]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -28,6 +31,7 @@ export default function ChatPage() {
       const char = chars.find(c => c.id === parseInt(id));
       if (!char) { setError('角色不存在'); setLoading(false); return; }
       setCharacter(char);
+      setAllChars(chars);
       setMessages(msgs.messages || []);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -99,65 +103,148 @@ export default function ChatPage() {
     catch (err) { alert(err.message); }
   };
 
-  if (loading) return <div style={styles.loadingContainer}><div style={styles.loadingText}>加载中…</div></div>;
-  if (error) return <div style={styles.loadingContainer}><div style={styles.loadingText}>{error}</div><Link to="/chat" style={styles.backLink}>返回角色列表</Link></div>;
+  if (loading) {
+    return (
+      <div className="chat-status">
+        <span className="seal" aria-hidden="true">愛</span>
+        <span className="mono-label">loading</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="chat-status">
+        <span className="seal" aria-hidden="true">愛</span>
+        <span className="t-card">{error}</span>
+        <Link to="/chat" className="btn-link">返回角色列表</Link>
+      </div>
+    );
+  }
+
+  const avatarBg = qbAvatarColor(character?.avatar_color);
 
   return (
-    <div style={styles.container}>
-      <div style={styles.topbar}>
-        <Link to="/chat" style={styles.backBtn}>← 伙伴</Link>
-        <div style={styles.charInfo}>
-          <div style={{ ...styles.avatarDot, background: charAvatarGradient(character?.avatar_color) }} />
-          <span style={styles.charName}>{character?.name}</span>
-          <span style={styles.moodTag}>{moodEmoji[character?.mood] || '😊'}</span>
+    <div className="chat-shell">
+      {/* 联系人侧栏（桌面端） */}
+      <aside className="chat-sidebar">
+        <div className="chat-sidebar-head">
+          <span className="mono-label">Companions</span>
+          <Link to="/" className="chat-sidebar-back">门户</Link>
         </div>
-        <div style={styles.topActions}>
-          {!character?.preset_id && <button onClick={handleDeleteChar} style={styles.actionBtn} title="删除角色">🗑️</button>}
-          <button onClick={handleClearHistory} style={styles.actionBtn} title="清空对话">🔄</button>
+        <div className="chat-sidebar-list">
+          {allChars.map(c => (
+            <div
+              key={c.id}
+              className={`row-hairline clickable chat-sidebar-row${c.id === character?.id ? ' active' : ''}`}
+              onClick={() => c.id !== character?.id && navigate(`/chat/${c.id}`)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && c.id !== character?.id && navigate(`/chat/${c.id}`)}
+            >
+              <span
+                className="avatar-circle"
+                style={{ background: qbAvatarColor(c.avatar_color), width: 36, height: 36, fontSize: 15 }}
+              >
+                {c.name.slice(-1)}
+              </span>
+              <span className="chat-sidebar-name">{c.name}</span>
+            </div>
+          ))}
         </div>
-      </div>
+        <button className="btn-outline chat-sidebar-new" onClick={() => navigate('/create')}>
+          ＋ 新伙伴
+        </button>
+      </aside>
 
-      <div style={styles.messagesArea}>
-        {messages.length === 0 && (
-          <div style={styles.emptyState}><div style={styles.emptyIcon}>💬</div><div style={styles.emptyText}>发送第一条消息，开始和 {character?.name} 聊天吧</div></div>
-        )}
-        {messages.map(msg => (
-          <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '4px' }}>
-            <div style={{ ...styles.messageRow, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              {msg.role !== 'user' && <div style={{ ...styles.avatarDot, background: charAvatarGradient(character?.avatar_color), marginRight: '8px' }} />}
-              <div style={{
-                ...styles.bubble,
-                background: msg.role === 'user' ? 'var(--bubble-user)' : 'var(--bubble-ai)',
-                color: msg.role === 'user' ? 'var(--bubble-user-text)' : 'var(--bubble-ai-text)',
-                borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'
-              }}>{msg.content}</div>
-              {msg.role === 'user' && <div style={{ ...styles.avatarDot, background: 'var(--accent)', marginLeft: '8px' }} />}
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: msg.role !== 'user' ? '44px' : '0', paddingRight: msg.role === 'user' ? '44px' : '0' }}>
-              {formatTime(msg.created_at)}
-            </div>
+      {/* 主对话区 */}
+      <div className="chat-main">
+        <div className="chat-topbar">
+          <Link to="/chat" className="chat-back">← 伙伴</Link>
+          <div className="chat-charinfo">
+            <span className="avatar-circle" style={{ background: avatarBg, width: 32, height: 32, fontSize: 14 }}>
+              {character?.name?.slice(-1)}
+            </span>
+            <span className="chat-charname">{character?.name}</span>
+            {character?.mood && (
+              <span className="mono-label">{MOOD_CN[character.mood] || character.mood}</span>
+            )}
           </div>
-        ))}
-        {sending && (
-          <div style={{ ...styles.messageRow, justifyContent: 'flex-start' }}>
-            <div style={{ ...styles.avatarDot, background: charAvatarGradient(character?.avatar_color), marginRight: '8px' }} />
-            <div style={styles.typingBubble}><span style={styles.typingDot} /><span style={{ ...styles.typingDot, animationDelay: '0.15s' }} /><span style={{ ...styles.typingDot, animationDelay: '0.3s' }} /></div>
+          <div className="chat-actions">
+            {!character?.preset_id && (
+              <button onClick={handleDeleteChar} className="chat-action">删除角色</button>
+            )}
+            <button onClick={handleClearHistory} className="chat-action">清空对话</button>
           </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+        </div>
 
-      <div style={styles.inputArea}>
-        <form onSubmit={e => { e.preventDefault(); handleSend(); }} style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'center' }}>
-          <input autoFocus style={styles.textInput} type="text" placeholder="输入消息…" value={input} onChange={e => setInput(e.target.value)} />
-          <button style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn} type="submit">发送</button>
-        </form>
+        <div className="chat-messages">
+          {messages.length === 0 && (
+            <div className="chat-empty">
+              <span className="seal" aria-hidden="true">愛</span>
+              <div className="chat-empty-title">第一句话，由你开启</div>
+              <p className="t-caption">和 {character?.name} 说点什么吧</p>
+            </div>
+          )}
+          {messages.map(msg => (
+            <div key={msg.id} className={`chat-msg ${msg.role === 'user' ? 'from-user' : 'from-ai'}`}>
+              <div className="chat-msg-row">
+                {msg.role !== 'user' && (
+                  <span className="avatar-circle" style={{ background: avatarBg, width: 36, height: 36, fontSize: 15 }}>
+                    {character?.name?.slice(-1)}
+                  </span>
+                )}
+                <div className={`bubble ${msg.role === 'user' ? 'bubble--user' : 'bubble--ai'}`}>
+                  {msg.content}
+                </div>
+              </div>
+              <div className="chat-time">{formatTime(msg.created_at)}</div>
+            </div>
+          ))}
+          {sending && (
+            <div className="chat-msg from-ai">
+              <div className="chat-msg-row">
+                <span className="avatar-circle" style={{ background: avatarBg, width: 36, height: 36, fontSize: 15 }}>
+                  {character?.name?.slice(-1)}
+                </span>
+                <div className="bubble bubble--ai chat-typing">
+                  <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="chat-inputbar">
+          <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="chat-form">
+            <div className="field-inkstone chat-field">
+              <input
+                autoFocus
+                className="input-inkstone"
+                type="text"
+                placeholder="输入消息…"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+              />
+            </div>
+            <button
+              className={`btn-primary chat-send${sending || !input.trim() ? ' is-idle' : ''}`}
+              type="submit"
+            >
+              发送
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
 }
 
-const moodEmoji = { joyful: '😊', content: '😌', calm: '😶', excited: '🤩', anxious: '😰', melancholic: '😔', confident: '💪' };
+const MOOD_CN = {
+  joyful: '愉悦', content: '安然', calm: '平静', excited: '雀跃',
+  anxious: '不安', melancholic: '低落', confident: '笃定',
+};
 
 function formatTime(iso) {
   if (!iso) return '';
@@ -165,40 +252,6 @@ function formatTime(iso) {
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  // If same day, just show time
   if (d.toDateString() === now.toDateString()) return time;
-  // Else show month-day + time
   return `${d.getMonth() + 1}/${d.getDate()} ${time}`;
 }
-
-function charAvatarGradient(color) {
-  const g = { '#f472b6': 'linear-gradient(135deg, #f472b6, #fb7185)', '#fbbf24': 'linear-gradient(135deg, #fbbf24, #f59e0b)', '#6366f1': 'linear-gradient(135deg, #6366f1, #8b5cf6)', '#f87171': 'linear-gradient(135deg, #f87171, #ef4444)', '#818cf8': 'linear-gradient(135deg, #818cf8, #6366f1)', '#fb923c': 'linear-gradient(135deg, #fb923c, #f97316)' };
-  return g[color] || g['#6366f1'];
-}
-
-const styles = {
-  container: { display: 'flex', flexDirection: 'column', height: '100vh', maxWidth: '640px', margin: '0 auto', background: 'var(--bg-primary)' },
-  loadingContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '16px' },
-  loadingText: { color: 'var(--text-secondary)', fontSize: '16px' },
-  backLink: { color: 'var(--accent)', fontSize: '15px' },
-  topbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 },
-  backBtn: { background: 'none', border: 'none', color: 'var(--accent)', fontSize: '15px', cursor: 'pointer', textDecoration: 'none' },
-  charInfo: { display: 'flex', alignItems: 'center', gap: '10px' },
-  avatarDot: { width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0 },
-  charName: { fontSize: '16px', fontWeight: '600' },
-  moodTag: { fontSize: '12px', padding: '2px 8px', borderRadius: '10px', background: 'var(--bg-input)', marginLeft: '6px' },
-  topActions: { display: 'flex', gap: '4px' },
-  actionBtn: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', padding: '4px' },
-  messagesArea: { flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' },
-  messageRow: { display: 'flex', alignItems: 'flex-end', maxWidth: '100%' },
-  bubble: { padding: '10px 16px', maxWidth: '75%', fontSize: '15px', lineHeight: '1.6', boxShadow: 'var(--shadow-sm)', wordBreak: 'break-word' },
-  typingBubble: { display: 'flex', gap: '4px', padding: '14px 18px', background: 'var(--bubble-ai)', borderRadius: '16px 16px 16px 4px', boxShadow: 'var(--shadow-sm)' },
-  typingDot: { width: '8px', height: '8px', borderRadius: '50%', background: 'var(--text-muted)', animation: 'typingBounce 0.6s infinite alternate' },
-  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '12px', paddingTop: '120px' },
-  emptyIcon: { fontSize: '48px' },
-  emptyText: { color: 'var(--text-muted)', fontSize: '15px' },
-  inputArea: { display: 'flex', gap: '10px', padding: '12px 16px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', flexShrink: 0 },
-  textInput: { flex: 1, padding: '10px 16px', background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: '24px', fontSize: '15px', color: 'var(--text-primary)', outline: 'none' },
-  sendBtn: { padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' },
-  sendBtnDisabled: { padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: '600', cursor: 'default', opacity: 0.4 },
-};
