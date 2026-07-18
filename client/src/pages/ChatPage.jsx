@@ -15,7 +15,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
   const proactiveTimerRef = useRef(null);
-  const formRef = useRef(null);
+  const chatFormRef = useRef(null);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -142,9 +142,9 @@ export default function ChatPage() {
       </div>
 
       <div style={styles.inputArea}>
-        <form ref={formRef} onSubmit={e => { e.preventDefault(); handleSend(); }} style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'center' }}>
+        <form ref={chatFormRef} onSubmit={e => { e.preventDefault(); handleSend(); }} style={{ display: 'flex', gap: '10px', width: '100%', alignItems: 'center' }}>
           <input key={inputKey} autoFocus style={styles.textInput} type="text" placeholder="输入消息…按 Enter 发送" value={input} onChange={e => setInput(e.target.value)} />
-          <button style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn} disabled={sending || !input.trim()} type="submit">发送</button>
+          <button style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn} type="submit">发送</button>
         </form>
       </div>
     </div>
