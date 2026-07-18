@@ -134,7 +134,11 @@ export default function ChatPage() {
       keepFocus();
     } finally {
       setSending(false);
-      keepFocus();
+      // Focus must happen after React has set button opacity back to 1
+      requestAnimationFrame(() => {
+        const el = document.querySelector('#chat-msg-input input');
+        el?.focus();
+      });
     }
   }, [input, sending, id]);
 
