@@ -108,13 +108,10 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Refocus the input field after sending
-    inputRef.current?.focus();
 
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
       const newMessages = [reply];
-      // If LLM returned multiple paragraphs, append them as separate messages
       if (reply.more && reply.more.length > 0) {
         newMessages.push(...reply.more);
       }
@@ -125,6 +122,8 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
+      // Re-focus the input after async work finishes
+      inputRef.current?.focus();
     }
   }, [input, sending, id]);
 
