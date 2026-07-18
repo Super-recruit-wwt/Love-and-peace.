@@ -255,7 +255,13 @@ export default function ChatPage() {
           placeholder="输入消息…按 Enter 发送"
           value={input}
           onChange={e => setInput(e.target.value)}
-        />
+        <button
+          style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
+          disabled={sending || !input.trim()}
+          type="submit"
+        >
+          发送
+        </button>
         </form>
       </div>
     </div>
@@ -358,5 +364,18 @@ const styles = {
     background: 'var(--bg-input)', border: '1px solid var(--border-color)',
     borderRadius: '24px', fontSize: '15px',
     color: 'var(--text-primary)', outline: 'none',
+  },
+  sendBtn: {
+    padding: '10px 20px',
+    background: 'var(--accent)', color: '#fff',
+    border: 'none', borderRadius: '24px',
+    fontSize: '15px', fontWeight: '600', cursor: 'pointer',
+  },
+  sendBtnDisabled: {
+    padding: '10px 20px',
+    background: 'var(--accent)', color: '#fff',
+    border: 'none', borderRadius: '24px',
+    fontSize: '15px', fontWeight: '600', cursor: 'default',
+    opacity: 0.4,
   },
 };
