@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [typingText, setTypingText] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
@@ -23,6 +24,13 @@ export default function ChatPage() {
   useEffect(() => {
     loadData();
   }, [id]);
+
+  // Auto-focus input when sending completes
+  useEffect(() => {
+    if (!sending) {
+      inputRef.current?.focus();
+    }
+  }, [sending]);
 
   const loadData = async () => {
     setLoading(true);
