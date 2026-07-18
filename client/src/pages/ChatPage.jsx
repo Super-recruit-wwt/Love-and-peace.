@@ -91,16 +91,6 @@ export default function ChatPage() {
         el?.focus();
       }, 100);
     }
-  }, [input, sending, id]);
-
-  // Ensure input has a tab stop and auto-focus on mount
-  useEffect(() => {
-    const el = document.querySelector(`[data-chat-input="${id}"]`);
-    if (el) {
-      el.setAttribute('tabindex', '0');
-      if (!loading) el.focus();
-    }
-  }, [loading, id]);
 
   const handleClearHistory = async () => {
     if (!confirm('确定清空所有对话记录吗？此操作不可恢复。')) return;
