@@ -122,11 +122,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Focus must happen after React's DOM commit. 100ms is imperceptible
-      // but long enough for React to have removed .sending from the button.
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
     }
   }, [input, sending, id]);
 
@@ -261,8 +256,6 @@ export default function ChatPage() {
       <div style={styles.inputArea} id="chat-msg-input">
         <input
           ref={inputRef}
-          tabIndex={0}
-          autoFocus
           style={styles.textInput}
           type="text"
           placeholder="输入消息…"
@@ -271,9 +264,11 @@ export default function ChatPage() {
           onKeyDown={handleKeyDown}
         />
         <button
-          className={sending || !input.trim() ? 'sendBtn sending' : 'sendBtn'}
           style={styles.sendBtn}
+          type="button"
           onClick={(e) => { e.preventDefault(); if (!sending && input.trim()) handleSend(); }}
+          disabled={sending || !input.trim()}
+        >
         >
           发送
         </button>
