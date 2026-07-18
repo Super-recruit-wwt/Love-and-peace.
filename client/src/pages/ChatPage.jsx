@@ -65,11 +65,6 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Put focus back on the input after sending
-      setTimeout(() => {
-        const inp = chatFormRef.current?.querySelector('input');
-        inp?.focus();
-      }, 0);
     }
   }, [input, sending, id]);
 
