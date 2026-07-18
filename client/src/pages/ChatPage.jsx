@@ -243,7 +243,7 @@ export default function ChatPage() {
           autoFocus
           style={styles.textInput}
           type="text"
-          placeholder="输入消息…"
+          placeholder="发送消息…"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -253,13 +253,6 @@ export default function ChatPage() {
             }
           }}
         />
-        <button
-          style={sending || !input.trim() ? styles.sendBtnDisabled : styles.sendBtn}
-          disabled={sending || !input.trim()}
-          onClick={() => handleSend()}
-        >
-          发送
-        </button>
       </div>
     </div>
   );
