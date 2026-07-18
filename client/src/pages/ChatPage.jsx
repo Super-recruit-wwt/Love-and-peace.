@@ -21,8 +21,11 @@ export default function ChatPage() {
   }, [id]);
 
   // Auto-focus input when sending state changes
+  // Auto-focus input when sending completes (not on initial mount)
+  const didMount = useRef(false);
   useEffect(() => {
-    if (!sending) {
+    if (!didMount.current) { didMount.current = true; return; }
+    if (!sending && !loading) {
       inputRef.current?.focus();
     }
   }, [sending, loading]);
@@ -92,12 +95,8 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errMsg]);
     } finally {
       setSending(false);
-      // Focus the input: the form's onSubmit prevents the submit button
-      // from ever gaining focus, so the input naturally retains it.
-      // We use requestAnimationFrame to ensure React's commit is complete.
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
+      // Focus after React commits setSending(false)
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [input, sending, id]);
 
