@@ -55,7 +55,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setSending(true);
-    // Focus input after remount — the key change triggers new mount with autoFocus
     try {
       const reply = await post(`/characters/${id}/chat`, { message: text });
       const newMessages = [reply];
