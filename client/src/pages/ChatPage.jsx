@@ -107,10 +107,7 @@ export default function ChatPage() {
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    // Focus the input now while React ref is still valid
-    inputRef.current?.focus();
     setSending(true);
-    // Focus the input now while React ref is still valid
     inputRef.current?.focus();
 
     try {
@@ -260,7 +257,6 @@ export default function ChatPage() {
       <div style={styles.inputArea}>
         <input
           ref={inputRef}
-          autoFocus
           style={styles.textInput}
           type="text"
           placeholder="输入消息…"
