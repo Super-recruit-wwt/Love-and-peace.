@@ -67,12 +67,11 @@ export default function ChatPage() {
   }, [loading]);
 
   // Re-focus input when sending state goes from true→false
-  const prevSendingRef = useRef(false);
   useEffect(() => {
-    if (prevSendingRef.current && !sending) {
-      inputRef.current?.focus();
+    if (!sending) {
+      const timer = setTimeout(() => inputRef.current?.focus(), 0);
+      return () => clearTimeout(timer);
     }
-    prevSendingRef.current = sending;
   }, [sending]);
 
   const handleSend = useCallback(async (msg) => {
