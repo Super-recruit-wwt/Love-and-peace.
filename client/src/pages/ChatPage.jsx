@@ -127,9 +127,13 @@ export default function ChatPage() {
       const errMsg = { id: Date.now() + 1, role: 'assistant', content: '抱歉，消息发送失败了，请稍后重试。', created_at: new Date().toISOString() };
       setMessages(prev => [...prev, errMsg]);
     } finally {
-      // Focus again after async resolves and React re-renders
       setSending(false);
-      setTimeout(() => inputEl?.focus(), 100);
+      // Keep trying to focus — the async chat response triggers state updates
+      // that may re-render and steal focus at unpredictable times
+      const attempts = [50, 150, 350, 700];
+      for (const delay of attempts) {
+        setTimeout(() => inputEl?.focus(), delay);
+      }
     }
   }, [input, sending, id]);
 
