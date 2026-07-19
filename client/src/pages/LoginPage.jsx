@@ -64,6 +64,12 @@ export default function LoginPage() {
         <p className="auth-foot">
           还没有账号？<Link to="/register">注册</Link>
         </p>
+        <p className="auth-foot" style={{ marginTop: 4 }}>
+          忘记密码？<Link to="/reset">重置</Link>
+        </p>
+        <p className="auth-foot" style={{ marginTop: 6 }}>
+          忘记密码？<Link to="/reset">重置</Link>
+        </p>
       </div>
     </div>
   );

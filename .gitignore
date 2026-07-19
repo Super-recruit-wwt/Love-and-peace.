@@ -6,6 +6,7 @@ dist/
 *.db-wal
 server/data/
 同行参考/
+板块-AI讨论群/
 
 # Claude 会话规划文件
 task_plan.md

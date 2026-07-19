@@ -26,7 +26,14 @@ echo "==> 4/5 安装后端依赖"
 cd "$APP_DIR/server"
 npm install --no-audit --no-fund
 
-echo "==> 5/5 重启后端"
+echo "==> 5/5 同步数据库（自动补列）"
+node -e "
+const { init } = require('./src/db');
+init();
+console.log('数据库已同步');
+"
+
+echo "==> 6/6 重启后端"
 pm2 restart "$PM2_NAME"
 
 echo ""

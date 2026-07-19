@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../AuthContext';
+import { post } from '../api';
 import './auth.css';
 
 export default function RegisterPage() {
-  const { register } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,14 +21,37 @@ export default function RegisterPage() {
     }
     setSubmitting(true);
     try {
-      await register(email, password, nickname);
-      navigate('/');
+      const res = await post('/auth/register', { email, password, nickname });
+      if (res.ok) setSent(true);
     } catch (err) {
       setError(err.message);
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (sent) {
+    return (
+      <div className="auth-wrap">
+        <div className="card-porcelain auth-card fade-rise">
+          <div className="auth-head">
+            <span className="seal seal--lg">愛</span>
+            <h2 className="t-heading">验证邮件已发送</h2>
+            <p className="auth-sub">
+              我们给 {email} 发了一封验证邮件。<br />
+              点击邮件内的链接完成验证，之后即可登录。
+            </p>
+          </div>
+          <button className="btn-primary auth-submit" onClick={() => navigate('/login')}>
+            前往登录
+          </button>
+          <p className="auth-foot" style={{ marginTop: 16, fontSize: 13, color: 'var(--color-ink-3)' }}>
+            没收到？检查一下垃圾箱，或者稍等两分钟。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-wrap">

@@ -17,6 +17,7 @@ function init() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       nickname TEXT NOT NULL,
+      email_verified INTEGER DEFAULT 0,
       theme TEXT DEFAULT 'light',
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -78,6 +79,17 @@ function init() {
       FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
     );
 
+    -- 验证/重置 token：type = 'verify' | 'reset'；过期后由应用层清理
+    CREATE TABLE IF NOT EXISTS verification_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('verify', 'reset')),
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     -- ============ 板块二「众声」多主体 AI 圆桌讨论 ============
 
     -- 讨论（圆桌）：user_id 为 NULL 且 is_sample=1 表示全站共享的示例回放
@@ -128,6 +140,19 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_disc_participants ON discussion_participants(discussion_id, turn_order);
     CREATE INDEX IF NOT EXISTS idx_disc_messages ON discussion_messages(discussion_id, id);
   `);
+
+  // 兼容旧库：users 增加 email_verified 列（存量用户默认 1 = 已验证）
+  safeAddColumn('users', 'email_verified', 'INTEGER DEFAULT 1');
+  module.exports.safeAddColumn = safeAddColumn;
+}
+
+function safeAddColumn(table, column, definition) {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch (err) {
+    // 列已存在 — 忽略
+    if (!err.message.includes('duplicate')) throw err;
+  }
 }
 
 // ==================== Emotional State Helpers ====================

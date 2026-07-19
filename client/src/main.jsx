@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import ResetPage from './pages/ResetPage';
+import VerifyPage from './pages/VerifyPage';
 import RegisterPage from './pages/RegisterPage';
 import PortalPage from './pages/PortalPage';
 import HomePage from './pages/HomePage';
@@ -57,6 +59,8 @@ function App() {
       <Routes>
         <Route path="/welcome" element={<GuestRoute><LandingPage /></GuestRoute>} />
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+        <Route path="/reset" element={<GuestRoute><ResetPage /></GuestRoute>} />
+        <Route path="/verify" element={<VerifyPage />} />
         <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
         <Route path="/" element={<ProtectedRoute><PortalPage /></ProtectedRoute>} />
         <Route path="/chat" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
