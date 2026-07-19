@@ -60,7 +60,7 @@ export default function PortalPage() {
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </span>
-            <div className="portal-card-name">AI 陪伴聊天</div>
+            <div className="portal-card-name">镜花缘</div>
             <div className="portal-card-desc">
               与专属虚拟伙伴畅聊，定制性格，获得情感陪伴
             </div>
@@ -81,7 +81,7 @@ export default function PortalPage() {
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
             </span>
-            <div className="portal-card-name">众声 · AI 圆桌</div>
+            <div className="portal-card-name">众声</div>
             <div className="portal-card-desc">
               几位人格各异的 AI 围坐论道，你可旁听、点名、随时插话
             </div>

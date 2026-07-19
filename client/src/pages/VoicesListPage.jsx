@@ -96,7 +96,7 @@ export default function VoicesListPage() {
         <div className="voices-head">
           <div>
             <p className="mono-label" style={{ marginTop: 24 }}>Voices</p>
-            <h1 className="t-heading voices-title">众声 · AI 圆桌</h1>
+            <h1 className="t-heading voices-title">众声</h1>
             <p className="voices-sub">
               几位人格各异的 AI 围坐论道。你可以旁听，也可以点名、插话，随时入席。
             </p>
