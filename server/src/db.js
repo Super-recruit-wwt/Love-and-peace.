@@ -78,11 +78,55 @@ function init() {
       FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
     );
 
+    -- ============ 板块二「众声」多主体 AI 圆桌讨论 ============
+
+    -- 讨论（圆桌）：user_id 为 NULL 且 is_sample=1 表示全站共享的示例回放
+    CREATE TABLE IF NOT EXISTS discussions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      topic TEXT NOT NULL,
+      knowledge TEXT,
+      knowledge_files TEXT,
+      next_turn INTEGER DEFAULT 0,
+      is_sample INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- 讨论成员：建群时从人格库快照，讨论期间不随库变动
+    CREATE TABLE IF NOT EXISTS discussion_participants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      discussion_id INTEGER NOT NULL,
+      persona_id TEXT,
+      name TEXT NOT NULL,
+      persona TEXT NOT NULL,
+      avatar_color TEXT,
+      avatar_char TEXT,
+      turn_order INTEGER NOT NULL,
+      FOREIGN KEY (discussion_id) REFERENCES discussions(id) ON DELETE CASCADE
+    );
+
+    -- 讨论消息：system(议题/提示) / human(用户插话) / agent(AI 发言)
+    CREATE TABLE IF NOT EXISTS discussion_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      discussion_id INTEGER NOT NULL,
+      speaker_type TEXT NOT NULL CHECK(speaker_type IN ('system', 'human', 'agent')),
+      participant_id INTEGER,
+      speaker_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (discussion_id) REFERENCES discussions(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_characters_user ON characters(user_id);
     CREATE INDEX IF NOT EXISTS idx_messages_character ON messages(character_id);
     CREATE INDEX IF NOT EXISTS idx_messages_time ON messages(character_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_condensed_character ON condensed_memories(character_id);
     CREATE INDEX IF NOT EXISTS idx_ground_truth ON ground_truth_log(character_id);
+    CREATE INDEX IF NOT EXISTS idx_discussions_user ON discussions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_disc_participants ON discussion_participants(discussion_id, turn_order);
+    CREATE INDEX IF NOT EXISTS idx_disc_messages ON discussion_messages(discussion_id, id);
   `);
 }
 

@@ -10,6 +10,9 @@ import HomePage from './pages/HomePage';
 import CreatePage from './pages/CreatePage';
 import ChatPage from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
+import VoicesListPage from './pages/VoicesListPage';
+import VoicesNewPage from './pages/VoicesNewPage';
+import VoicesRoomPage from './pages/VoicesRoomPage';
 import '@fontsource/noto-serif-sc/300.css';
 import '@fontsource/noto-serif-sc/400.css';
 import '@fontsource/space-grotesk/400.css';
@@ -59,6 +62,9 @@ function App() {
         <Route path="/chat" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/create" element={<ProtectedRoute><CreatePage /></ProtectedRoute>} />
         <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+        <Route path="/voices" element={<ProtectedRoute><VoicesListPage /></ProtectedRoute>} />
+        <Route path="/voices/new" element={<ProtectedRoute><VoicesNewPage /></ProtectedRoute>} />
+        <Route path="/voices/:id" element={<ProtectedRoute><VoicesRoomPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       </Routes>
     </div>

@@ -66,6 +66,27 @@ export default function PortalPage() {
             </div>
           </div>
 
+          <div
+            className="card-porcelain hoverable portal-card"
+            onClick={() => navigate('/voices')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && navigate('/voices')}
+          >
+            <span className="portal-card-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <div className="portal-card-name">众声 · AI 圆桌</div>
+            <div className="portal-card-desc">
+              几位人格各异的 AI 围坐论道，你可旁听、点名、随时插话
+            </div>
+          </div>
+
           <div className="portal-card-pending" aria-hidden="true">
             <span className="mono-label">coming soon</span>
             <div className="portal-card-pending-name">新的板块，正在窑中</div>

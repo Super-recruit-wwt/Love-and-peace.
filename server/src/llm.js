@@ -532,6 +532,49 @@ async function proactiveChat(systemPrompt, messages, emotionalState) {
   return response.choices[0].message.content;
 }
 
+// ==================== 众声 · 圆桌讨论 ====================
+
+/**
+ * 生成圆桌讨论中某位成员的发言
+ * 逻辑与「板块-AI讨论群」Python 版一致：
+ * 人设 + 背景资料进 system prompt，整场对话记录作为上下文。
+ *
+ * @param {object} participant { name, persona }
+ * @param {string} topic 议题
+ * @param {string} transcript 「发言人: 内容」逐行拼接的对话记录
+ * @param {string|null} knowledge 背景资料（可选）
+ */
+async function discussionReply(participant, topic, transcript, knowledge) {
+  const openai = getClient();
+  const model = process.env.LLM_MODEL || 'deepseek-chat';
+
+  let systemPrompt =
+    `你是「${participant.name}」。你的性格和背景是：${participant.persona}\n` +
+    `你正在参与一场多人圆桌讨论，今日议题：${topic}\n` +
+    '请根据对话记录给出你的回应：直接说出内容，不要加名字前缀，不要复述别人的话。' +
+    '保持你独有的视角和语言风格，可以赞同、质疑或延伸此前发言者的观点，篇幅在两三段以内。';
+
+  if (knowledge) {
+    systemPrompt +=
+      '\n\n═════════════════════\n【背景资料】\n' +
+      '以下是供你参考的背景信息，请在讨论时结合这些内容：\n' +
+      '═════════════════════\n' +
+      knowledge;
+  }
+
+  const response = await openai.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `【当前对话记录】\n${transcript}\n\n现在轮到你发言了：` },
+    ],
+    temperature: 0.7,
+    max_tokens: 800,
+  });
+
+  return response.choices[0].message.content.trim();
+}
+
 module.exports = {
   buildSystemPrompt,
   buildTraits,
@@ -544,4 +587,5 @@ module.exports = {
   compressMemory,
   chat,
   proactiveChat,
+  discussionReply,
 };
