@@ -139,10 +139,161 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_discussions_user ON discussions(user_id);
     CREATE INDEX IF NOT EXISTS idx_disc_participants ON discussion_participants(discussion_id, turn_order);
     CREATE INDEX IF NOT EXISTS idx_disc_messages ON discussion_messages(discussion_id, id);
+
+    -- ============ 板块三「修仙模拟人生」============
+
+    -- 角色：一个用户可创建多个修仙角色
+    CREATE TABLE IF NOT EXISTS xianxia_characters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      gender TEXT DEFAULT 'neutral',
+      status TEXT DEFAULT 'active' CHECK(status IN ('active','dead','ascended')),
+      -- 灵根
+      spirit_roots TEXT NOT NULL DEFAULT '{}',
+      special_body TEXT,
+      -- 出生
+      birth_region TEXT NOT NULL,
+      birth_background TEXT NOT NULL,
+      birth_narrative TEXT,
+      -- 修炼路线进度（JSON：{ "xiandao": "金丹初期", "physical": null, "strange": null, "artisan": null, "wanderer": null }）
+      cultivation_paths TEXT NOT NULL DEFAULT '{}',
+      -- 属性
+      lifespan_remaining INTEGER NOT NULL DEFAULT 80,
+      health REAL NOT NULL DEFAULT 100,
+      qi_current REAL NOT NULL DEFAULT 0,
+      qi_max REAL NOT NULL DEFAULT 0,
+      divine_sense REAL NOT NULL DEFAULT 0,
+      dao_heart REAL NOT NULL DEFAULT 50,
+      comprehension REAL NOT NULL DEFAULT 50,
+      fortune REAL NOT NULL DEFAULT 50,
+      spirit_stones INTEGER NOT NULL DEFAULT 0,
+      fame INTEGER NOT NULL DEFAULT 0,
+      infamy INTEGER NOT NULL DEFAULT 0,
+      charm REAL NOT NULL DEFAULT 50,
+      pressure REAL NOT NULL DEFAULT 50,
+      alchemy_skill REAL NOT NULL DEFAULT 0,
+      crafting_skill REAL NOT NULL DEFAULT 0,
+      formation_skill REAL NOT NULL DEFAULT 0,
+      talisman_skill REAL NOT NULL DEFAULT 0,
+      body_status TEXT DEFAULT NULL,
+      current_location TEXT NOT NULL DEFAULT '中州-无名小镇',
+      game_age INTEGER NOT NULL DEFAULT 0,
+      -- 倒计时锁
+      timer_type TEXT,
+      timer_end_at TEXT,
+      timer_narrative TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- 时间线：角色人生事件日志
+    CREATE TABLE IF NOT EXISTS xianxia_timeline (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id INTEGER NOT NULL,
+      game_time TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      narrative TEXT NOT NULL,
+      options TEXT,
+      rewards TEXT,
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE
+    );
+
+    -- 固定 NPC 主数据（全局共享）
+    CREATE TABLE IF NOT EXISTS xianxia_npcs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      identity TEXT NOT NULL,
+      faction TEXT,
+      location TEXT,
+      personality_type TEXT NOT NULL,
+      strength_level TEXT,
+      personality_traits TEXT NOT NULL DEFAULT '{}',
+      is_fixed INTEGER DEFAULT 0,
+      is_alive INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- 角色 ↔ NPC 关系
+    CREATE TABLE IF NOT EXISTS xianxia_relationships (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id INTEGER NOT NULL,
+      npc_id INTEGER NOT NULL,
+      affection REAL NOT NULL DEFAULT 0,
+      relation_types TEXT NOT NULL DEFAULT '[]',
+      notes TEXT,
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE,
+      FOREIGN KEY (npc_id) REFERENCES xianxia_npcs(id) ON DELETE CASCADE,
+      UNIQUE(character_id, npc_id)
+    );
+
+    -- 世界状态（全局单行，JSON 键值）
+    CREATE TABLE IF NOT EXISTS xianxia_world_state (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT UNIQUE NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- 传世记录
+    CREATE TABLE IF NOT EXISTS xianxia_legacy (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id INTEGER NOT NULL,
+      death_cause TEXT NOT NULL,
+      death_narrative TEXT,
+      final_cultivation TEXT,
+      final_age INTEGER,
+      legacy_type TEXT,
+      legacy_data TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE
+    );
+
+    -- 通关记录
+    CREATE TABLE IF NOT EXISTS xianxia_completed_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id INTEGER NOT NULL,
+      character_name TEXT NOT NULL,
+      cultivation_path TEXT NOT NULL,
+      final_cultivation TEXT NOT NULL,
+      game_duration INTEGER NOT NULL,
+      key_achievements TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE
+    );
+
+    -- 角色物品/法宝
+    CREATE TABLE IF NOT EXISTS xianxia_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      item_type TEXT NOT NULL CHECK(item_type IN ('treasure','pill','technique','material','spirit_stone','misc')),
+      grade TEXT NOT NULL DEFAULT '凡品',
+      description TEXT,
+      quantity INTEGER DEFAULT 1,
+      is_equipped INTEGER DEFAULT 0,
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_xianxia_chars_user ON xianxia_characters(user_id);
+    CREATE INDEX IF NOT EXISTS idx_xianxia_timeline_char ON xianxia_timeline(character_id, id);
+    CREATE INDEX IF NOT EXISTS idx_xianxia_rel_char ON xianxia_relationships(character_id);
+    CREATE INDEX IF NOT EXISTS idx_xianxia_items_char ON xianxia_items(character_id);
+    CREATE INDEX IF NOT EXISTS idx_xianxia_legacy_char ON xianxia_legacy(character_id);
   `);
 
   // 兼容旧库：users 增加 email_verified 列（存量用户默认 1 = 已验证）
   safeAddColumn('users', 'email_verified', 'INTEGER DEFAULT 1');
+  // 兼容旧库：xianxia_timeline 增加 options 列（AI 建议选项 JSON 数组）
+  safeAddColumn('xianxia_timeline', 'options', 'TEXT');
+  // 兼容旧库：xianxia_timeline 增加 rewards 列（剧本收益摘要 JSON 数组）
+  safeAddColumn('xianxia_timeline', 'rewards', 'TEXT');
   module.exports.safeAddColumn = safeAddColumn;
 }
 

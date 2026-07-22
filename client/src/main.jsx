@@ -15,6 +15,13 @@ import SettingsPage from './pages/SettingsPage';
 import VoicesListPage from './pages/VoicesListPage';
 import VoicesNewPage from './pages/VoicesNewPage';
 import VoicesRoomPage from './pages/VoicesRoomPage';
+import XianxiaCharList from './pages/xianxia/CharListPage';
+import XianxiaBirth from './pages/xianxia/BirthPage';
+import XianxiaMain from './pages/xianxia/MainPage';
+import XianxiaProfile from './pages/xianxia/ProfilePage';
+import XianxiaMap from './pages/xianxia/MapPage';
+import XianxiaJournal from './pages/xianxia/JournalPage';
+import XianxiaLegacy from './pages/xianxia/LegacyPage';
 import '@fontsource/noto-serif-sc/300.css';
 import '@fontsource/noto-serif-sc/400.css';
 import '@fontsource/space-grotesk/400.css';
@@ -70,6 +77,13 @@ function App() {
         <Route path="/voices/new" element={<ProtectedRoute><VoicesNewPage /></ProtectedRoute>} />
         <Route path="/voices/:id" element={<ProtectedRoute><VoicesRoomPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="/xianxia" element={<ProtectedRoute><XianxiaCharList /></ProtectedRoute>} />
+        <Route path="/xianxia/birth" element={<ProtectedRoute><XianxiaBirth /></ProtectedRoute>} />
+        <Route path="/xianxia/legacy" element={<ProtectedRoute><XianxiaLegacy /></ProtectedRoute>} />
+        <Route path="/xianxia/:characterId" element={<ProtectedRoute><XianxiaMain /></ProtectedRoute>} />
+        <Route path="/xianxia/:characterId/profile" element={<ProtectedRoute><XianxiaProfile /></ProtectedRoute>} />
+        <Route path="/xianxia/:characterId/map" element={<ProtectedRoute><XianxiaMap /></ProtectedRoute>} />
+        <Route path="/xianxia/:characterId/journal" element={<ProtectedRoute><XianxiaJournal /></ProtectedRoute>} />
       </Routes>
     </div>
   );

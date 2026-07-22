@@ -1,0 +1,330 @@
+/* 修仙模拟 — 通用样式（青白设计系统） */
+
+.x-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-3) var(--space-12);
+  min-height: 100vh;
+}
+
+.x-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.x-header h1 {
+  margin: 4px 0 0;
+}
+
+.x-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--color-ink-3);
+}
+
+.x-empty {
+  color: var(--color-ink-3);
+  text-align: center;
+  padding: var(--space-6) 0;
+}
+
+/* 创建表单 */
+.x-create-form {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.x-create-form .field-inkstone {
+  flex: 1;
+  min-width: 200px;
+}
+
+.x-select {
+  padding: 10px 16px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-soft);
+}
+
+.x-select:focus {
+  border-color: var(--color-ink);
+}
+
+/* 角色卡片网格 */
+.x-char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.x-char-card {
+  padding: var(--space-3);
+  cursor: pointer;
+}
+
+.x-char-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+.x-char-name {
+  font-family: var(--font-display-cn);
+  font-size: 18px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink);
+}
+
+.x-status-tag {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  letter-spacing: var(--tracking-mono);
+  flex-shrink: 0;
+}
+
+.x-status-active { background: var(--color-celadon); color: var(--color-paper); }
+.x-status-dead { background: var(--color-seal); color: #F7F3EA; }
+.x-status-ascended { background: var(--color-lotus); color: #2B2B2B; }
+
+.x-char-card-path {
+  font-size: 13px;
+  color: var(--color-ink-3);
+  margin-bottom: var(--space-1);
+}
+
+.x-char-card-meta {
+  font-size: 12px;
+  color: var(--color-ink-3);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.x-char-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.x-char-card-footer .btn-danger-link {
+  padding: 4px 0;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.x-char-card-footer .btn-danger-link:hover {
+  opacity: 1;
+}
+
+.x-timer-badge {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: var(--color-lotus-soft);
+  color: var(--color-celadon);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-mono);
+  text-align: center;
+}
+
+/* 出生页 */
+.x-birth-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-width: 640px;
+}
+
+.x-birth-stage {
+  margin-bottom: var(--space-3);
+}
+
+.x-birth-narrative {
+  font-family: var(--font-display-cn);
+  font-size: 17px;
+  line-height: 1.9;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink);
+  margin-bottom: var(--space-4);
+  max-width: 520px;
+  text-align: left;
+}
+
+.x-loading-text {
+  color: var(--color-ink-3);
+  margin-top: var(--space-2);
+}
+
+.x-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.x-choices .btn-primary {
+  min-width: 280px;
+}
+
+/* 底部导航 */
+.x-footer-nav {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  padding-top: var(--space-3);
+}
+
+/* 占位提示 */
+.x-placeholder {
+  color: var(--color-ink-3);
+  padding: var(--space-6) 0;
+  text-align: center;
+}
+
+/* 信息块（细线无框行） */
+.x-info-block {
+  margin-bottom: 12px;
+}
+
+.x-info-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+  margin-bottom: 2px;
+}
+
+.x-info-value {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.x-info-separator {
+  height: 1px;
+  background: var(--color-hairline);
+  margin: 12px 0;
+}
+
+/* 区块（详情页/传世页通用） */
+.x-section {
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.x-section .mono-label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.x-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* 无框列表行 */
+.x-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.x-row:last-child {
+  border-bottom: none;
+}
+
+.x-row-main {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.x-row-sub {
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+
+.x-row-accent {
+  font-size: 12px;
+  color: var(--color-celadon);
+}
+
+/* 传世记录卡 */
+.x-legacy-card {
+  padding: var(--space-3);
+  margin-bottom: 12px;
+}
+
+.x-legacy-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.x-legacy-name {
+  font-family: var(--font-display-cn);
+  font-size: 18px;
+  letter-spacing: var(--tracking-cn);
+  color: var(--color-ink);
+}
+
+.x-legacy-meta {
+  font-size: 13px;
+  color: var(--color-ink-2);
+  margin-top: var(--space-1);
+}
+
+.x-legacy-achievements {
+  font-size: 12px;
+  color: var(--color-ink-3);
+  margin-top: 4px;
+}
+
+.x-group-label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+/* 按钮尺寸变体 */
+.btn-sm {
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+@media (max-width: 640px) {
+  .x-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .x-legacy-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

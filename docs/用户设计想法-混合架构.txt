@@ -1,0 +1,125 @@
+这是一个非常关键的发现。两个参考项目太死板（玩家只能点按钮），而我们的项目又太开放（LLM 想怎么写就怎么写）。你需要的是一个**中间层**——固定模板和剧本做框架，LLM 只负责在框架内填充文字。
+
+让我来设计这个混合架构。
+
+---
+
+## 问题诊断
+
+目前我们每次行动的处理流程是：
+
+```
+玩家输入 → LLM 自由发挥 → 返回叙事 + 可能附带标记
+```
+
+问题出在中间这个环节：LLM 既负责"判定发生了什么"，又负责"用文字描述发生了什么"。这是两个完全不同的任务。判定应该是确定性的（数值推演），文字才是 LLM 的活儿。
+
+---
+
+## 混合架构方案
+
+把一条行动拆成三层：
+
+**第一层：意图识别 + 剧本匹配（确定性）**
+
+玩家输入后，先不调 LLM。先跑一遍规则引擎，把玩家意图匹配到预定义的"剧本模板"。比如：
+
+| 玩家意图 | 匹配剧本 | 触发条件 | 固定结果框架 |
+|----------|----------|----------|-------------|
+| "修炼" | `cultivation_routine` | 灵气 > 0，有功法 | 灵气积累 +X，寿元消耗 Y 天 |
+| "去宗门拜师" | `sect_join` | 附近有宗门 | 入门测试 → 成功/失败（属性判定） |
+| "炼丹" | `alchemy_craft` | 有丹方 + 材料 | 成功率 = f(炼丹技能, 丹药品级) |
+| "探索" | `exploration` | 所在位置有探索点 | 发现物 = f(探索点类型, 气运) |
+| "攻击某 NPC" | `combat_init` | NPC 存在 | 战力差 → 优/均/劣 定性结果 |
+| 自由输入（无匹配） | `free_narrative` | 兜底 | LLM 自由生成（保留自由度） |
+
+**第二层：数值推演（确定性）**
+
+剧本匹配后，服务端跑一遍后端判定——不是 LLM 判，是代码判：
+
+```javascript
+// 示例：修炼剧本
+function cultivationRoutine(character, params) {
+  const efficiency = calculateEfficiency(character); // 灵根 × 功法 × 悟性
+  const qiGain = Math.floor(efficiency * params.duration);
+  const lifespanCost = Math.ceil(params.duration / 30); // 一个月耗一年寿元（闭关比例）
+  
+  // 判定是否有突破契机
+  const breakthroughChance = (character.dao_heart / 100) * (qiGain / character.qi_max);
+  const breakthroughTriggered = Math.random() < breakthroughChance;
+  
+  return {
+    qiGain,
+    lifespanCost,
+    breakthroughTriggered,
+    narrative_params: { efficiency, qiGain, duration: params.duration }
+  };
+}
+```
+
+**第三层：LLM 叙事包装（生成式）**
+
+数值结果确定后，把结构化的结果喂给 LLM——只让它写文字：
+
+```
+你是一位修仙小说叙事引擎。请根据以下固定结果，生成一段叙事文字：
+
+- 角色：陆尘，筑基中期，火土双灵根
+- 行为：闭关修炼了 15 天
+- 结果：灵气积累 +23，寿元消耗 15 天，没有触发突破
+- 地点：中州-青云宗后山修炼洞
+
+请用第三人称叙事，约 100-150 字。不要添加任何情节转折或意外发现——修炼过程平稳，就是日复一日的吐纳。
+```
+
+这样 LLM 的任务从"判定 + 文字"缩小到"只写文字"，而且文字要遵守给定的结果框架。可控性大幅提升。
+
+---
+
+## 剧本模板体系
+
+按活动类型分六大类，每类有固定模板：
+
+**修炼类：**
+- `cultivation_routine` — 日常修炼（灵气积累，可能触发突破契机）
+- `breakthrough_attempt` — 冲击瓶颈（倒计时锁 + 成功率判定 + 三种结局）
+- `comprehend_technique` — 参悟功法（悟性判定 → 功法深度升级）
+
+**社交类：**
+- `npc_talk` — 与 NPC 交谈（好感度变化 ± 文本推断）
+- `sect_join` — 拜入宗门（入门测试 → 成功/失败/特殊条件）
+- `trade` — 交易（价格 = f(名望, 好感度)，物品清单固定）
+- `challenge_duel` — 切磋/决斗（战力差 → 结果框架）
+
+**探索类：**
+- `explore_location` — 探索当前位置（地点类型决定发现物池）
+- `travel` — 跨区域旅行（时间锁 + 随机遭遇事件）
+- `investigate_clue` — 追踪奇遇线索（线索池 → 发现物 → 奇遇触发）
+
+**匠道类：**
+- `alchemy_craft` — 炼丹（成功率 + 品质判定 + 时间锁）
+- `artifact_craft` — 炼器（成功率 + 品质判定 + 时间锁）
+- `gather_materials` — 采集（地点 → 材料池随机抽取）
+- `appraise_item` — 鉴定物品（神识判定 → 鉴定结果）
+
+**诡道类：**
+- `strange_contact` — 接触诡异（不可逆，异化度 +X）
+- `strange_resist` — 抵抗异化（道心判定，可暂缓）
+- `strange_use_power` — 使用诡道能力（效果大，异化度 +Y）
+
+**战斗类：**
+- `combat_init` — 战斗开始（战力评估 → 优/均/劣 结果框架）
+- `combat_use_skill` — 使用术法/法宝（效果加成）
+- `combat_flee` — 脱战（敏捷 + 气运判定）
+
+---
+
+## 具体实施
+
+从我们当前架构来看，要做的改动集中在 `llm.js` 的 `processAction()` 函数里——在调 LLM 之前，先加一层意图解析和剧本匹配。
+
+改动量不算大：
+- 新增 `server/src/xianxia/scripts/` 目录，放各个剧本模板
+- 修改 `llm.js` 的 `processAction()`：意图识别 → 剧本判定 → 数值推演 → LLM 叙事包装
+- 前端增加"常见行动"快捷入口（修炼、探索、交谈等），降低玩家输入门槛
+

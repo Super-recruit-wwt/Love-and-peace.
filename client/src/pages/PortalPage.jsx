@@ -91,6 +91,26 @@ export default function PortalPage() {
             <span className="mono-label">coming soon</span>
             <div className="portal-card-pending-name">新的板块，正在窑中</div>
           </div>
+
+          <div
+            className="card-porcelain hoverable portal-card"
+            onClick={() => navigate('/xianxia')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && navigate('/xianxia')}
+          >
+            <span className="portal-card-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+            </span>
+            <div className="portal-card-name">修仙模拟</div>
+            <div className="portal-card-desc">
+              文字模拟人生——扮演求道者，在修仙世界中闯荡属于你的一生
+            </div>
+          </div>
         </div>
       </section>
     </div>

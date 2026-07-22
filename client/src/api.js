@@ -44,6 +44,10 @@ export function post(path, body) {
   return request(path, { method: 'POST', body: JSON.stringify(body) });
 }
 
+export function patch(path, body) {
+  return request(path, { method: 'PATCH', body: JSON.stringify(body) });
+}
+
 export function put(path, body) {
   return request(path, { method: 'PUT', body: JSON.stringify(body) });
 }
@@ -51,3 +55,6 @@ export function put(path, body) {
 export function del(path) {
   return request(path, { method: 'DELETE' });
 }
+
+// 便捷对象导出（供新板块使用）
+export const api = { get, post, patch, put, del };

@@ -13,6 +13,7 @@ const { buildSystemPrompt, chat, proactiveChat,
   analyzeStimulus, applyStimulus,
   generateInternalMonologue, compressMemory, discussionReply } = require('./llm');
 const { sendTokenMail } = require('./mailer');
+const xianxia = require('./xianxia');
 
 // Ensure data directory exists
 const dataDir = path.join(__dirname, 'data');
@@ -967,9 +968,34 @@ function seedSampleDiscussions() {
 
 seedSampleDiscussions();
 
+// 修仙模块：初始化世界状态与固定 NPC（幂等，已有数据则跳过）
+try {
+  require('./xianxia/world').seedAll();
+} catch (err) {
+  console.error('修仙世界初始化失败:', err);
+}
+
 // ==================== Serve static files in production ====================
 
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
+
+// ==================== 修仙模拟人生 API ====================
+
+app.get('/api/xianxia/characters', authMiddleware, xianxia.listCharacters);
+app.post('/api/xianxia/characters', authMiddleware, xianxia.createCharacter);
+app.get('/api/xianxia/characters/:id', authMiddleware, xianxia.getCharacter);
+app.patch('/api/xianxia/characters/:id', authMiddleware, xianxia.updateCharacter);
+app.delete('/api/xianxia/characters/:id', authMiddleware, xianxia.deleteCharacter);
+app.get('/api/xianxia/characters/:id/timeline', authMiddleware, xianxia.getTimeline);
+app.get('/api/xianxia/world-state', authMiddleware, xianxia.getWorldState);
+app.get('/api/xianxia/npcs', authMiddleware, xianxia.listNpcs);
+app.get('/api/xianxia/legacy', authMiddleware, xianxia.getLegacy);
+app.post('/api/xianxia/characters/:id/action', authMiddleware, xianxia.processAction);
+app.post('/api/xianxia/characters/:id/settle', authMiddleware, xianxia.settleTimer);
+app.post('/api/xianxia/characters/:id/birth-narrative', authMiddleware, xianxia.birthNarrative);
+app.get('/api/xianxia/characters/:id/export', authMiddleware, xianxia.exportMD);
+
+// ==================== Static files ====================
 if (fs.existsSync(clientBuildPath)) {
   app.use(express.static(clientBuildPath));
   app.get('*', (_req, res) => {

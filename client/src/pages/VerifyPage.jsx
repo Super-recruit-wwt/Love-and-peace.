@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { get, setToken } from '../api';
@@ -12,6 +12,8 @@ export default function VerifyPage() {
 
   const token = searchParams.get('token');
 
+  const requested = useRef(false);
+
   useEffect(() => {
     if (!token) {
       setError('验证链接无效');
@@ -21,6 +23,9 @@ export default function VerifyPage() {
       navigate('/', { replace: true });
       return;
     }
+    // StrictMode 下 effect 会执行两次，保证验证请求只发一次（token 是一次性的）
+    if (requested.current) return;
+    requested.current = true;
     get(`/auth/verify-email?token=${token}`)
       .then(res => {
         if (res.token) {
