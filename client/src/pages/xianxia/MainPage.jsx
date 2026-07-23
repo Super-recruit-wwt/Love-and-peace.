@@ -265,6 +265,9 @@ export default function MainPage() {
       setCharacter(updated);
       setLocationOptions(updated.location_options || []);
 
+      // 跨年生成了纪元大事记：同步刷新世界面板
+      if (res.chronicle_events && res.chronicle_events.length > 0) loadWorldState();
+
       // 更新建议选项：行动返回的 options 优先；空则用地名情境选项兜底
       if (res.options && res.options.length > 0) {
         setSuggestions(res.options);
@@ -414,12 +417,25 @@ export default function MainPage() {
           {Object.keys(worldState).length > 0 ? (
             <div className="x-info-block">
               <span className="x-info-label">纪元</span>
-              <span className="x-info-value">{worldState.era_name || '开天纪'} · 第{worldState.game_year || 1}年</span>
+              <span className="x-info-value">{worldState.era_name || '开天纪'} · 第{character.game_year || worldState.game_year || 1}年</span>
             </div>
           ) : (
             <div className="x-info-block">
               <span className="x-info-label">已知势力</span>
               <span className="x-info-value">等待探索……</span>
+            </div>
+          )}
+          {Array.isArray(worldState.chronicle) && worldState.chronicle.length > 0 && (
+            <div className="x-info-block" style={{ display: 'block' }}>
+              <span className="x-info-label">大事记</span>
+              {worldState.chronicle.slice(-3).reverse().map(function(e, i) {
+                return (
+                  <div key={i} className="x-row-sub" style={{ fontSize: '12px', marginTop: '4px' }}
+                    title={e.text}>
+                    第{e.year}年 · {e.title}
+                  </div>
+                );
+              })}
             </div>
           )}
 

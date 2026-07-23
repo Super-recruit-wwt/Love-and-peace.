@@ -6,6 +6,7 @@ const xianxiaLLM = require('./llm');
 const breakthrough = require('./breakthrough');
 const npcEngine = require('./npc');
 const worldEvents = require('./events');
+const chronicle = require('./chronicle');
 const npcBehavior = require('./npc_behavior');
 const { optionsForLocation, withBreakthroughOption, buffsFromPillEffect, parseJson } = require('./scripts/utils');
 const techniques = require('./techniques');
@@ -167,6 +168,8 @@ function getCharacter(req, res) {
     body_status: character.body_status || null,
     active_buffs: JSON.parse(character.active_buffs || '[]'),
     timer_remaining: getTimerRemaining(character),
+    // 纪元年份：随角色游戏时间推进（16 岁开局 = 纪元第 1 年），世界表中的 game_year 仅作初始种子
+    game_year: Math.max(1, Math.floor((character.game_age || 16) - 15)),
     // 地点情境化选项：前端 suggestions 的兜底来源（行动返回的 options 优先）
     location_options: withBreakthroughOption(character, optionsForLocation(character)),
     items,
@@ -406,6 +409,14 @@ async function processAction(req, res) {
         }
       } catch (e) {
         console.error('世界事件推演失败:', e.message);
+      }
+
+      // 纪元大事记：世界时钟随游戏年龄推进，跨年时概率生成世界大事（逢五之年必有）
+      try {
+        const chronicleEvents = chronicle.advanceChronicle(characterId, r.gameTime);
+        if (chronicleEvents.length > 0) r.chronicle_events = chronicleEvents;
+      } catch (e) {
+        console.error('纪元大事记推演失败:', e.message);
       }
 
       // NPC 半主动行为：8% 概率触发
@@ -882,6 +893,10 @@ async function travelTo(req, res) {
     db.prepare(
       'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative) VALUES (?, ?, ?, ?)'
     ).run(characterId, xianxiaLLM.formatGameAge(newGameAge), 'travel', narrative);
+
+    // 纪元大事记：赶路跨年时同样推进世界时钟
+    try { chronicle.advanceChronicle(characterId, xianxiaLLM.formatGameAge(newGameAge)); }
+    catch (e) { console.error('纪元大事记推演失败:', e.message); }
 
     // 到达新地点后自动发现同区域地点
     var newlyDiscovered = discoverLocations(characterId);

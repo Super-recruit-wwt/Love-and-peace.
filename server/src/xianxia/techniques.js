@@ -290,6 +290,7 @@ function effectiveQiMax(character) {
 
 // ==================== 功法三元成长（精/气/神） ====================
 // 规则：每部功法都能在突破时滋养三元，但终身上限有限——品级越高，每次加成与总上限越高。
+// 总量不叠加：每次突破各系只取加成最高的一部功法生效（单功法最大值，而非诸功法总和）。
 // 模板配了 *_per_break 的系用配置值，未配的系按品级默认值；诡品只吃显式配置（可为负，是代价），不占上限。
 const STAT_GAIN_BY_GRADE = {
   '凡品': { perBreak: 2, cap: 30 },
@@ -301,16 +302,18 @@ const STAT_GAIN_BY_GRADE = {
 const STAT_BREAK_KEYS = [['essence_per_break', 'essence'], ['qi_per_break', 'qi'], ['spirit_per_break', 'spirit']];
 
 /**
- * 大境界突破时的三元加成（纯函数）——所有已学功法都贡献，各自独立消耗品级上限：
- * - 模板配了 *_per_break 的系用配置值，未配的系按品级默认值；诡品只吃显式配置（可为负，是代价），不占上限
+ * 大境界突破时的三元加成（纯函数）——所有已学功法都参与，但正收益不叠加：
+ * - 各系正收益取单部功法最大值（品级越高单次越多），每部功法仍各自消耗自己的品级上限
+ * - 模板配了 *_per_break 的系用配置值，未配的系按品级默认值；诡品负值代价总是生效（可叠加），不占上限
  * 返回 { gains, list, capped }：
- * - gains：全部已学功法加成汇总 { essence?, qi?, spirit? }，无任何加成时为 null
+ * - gains：本次实际生效加成 { essence?, qi?, spirit? }，无任何加成时为 null
  * - list：stat_gained 累计已更新的 learned_techniques 数组（调用方负责落库）
  * - capped：本次是否有功法因上限被削顶
  */
 function breakthroughStatGains(character) {
   const list = getLearned(character);
-  const gains = {};
+  const posMax = {}; // 各系正收益：取单部功法最大值
+  const negSum = {}; // 诡品负值代价：总是生效，不占上限
   let capped = false;
   for (const entry of list) {
     const tpl = getTemplate(entry.name);
@@ -329,13 +332,18 @@ function breakthroughStatGains(character) {
         const grant = Math.min(v, remaining);
         if (grant <= 0) { capped = true; continue; }
         if (grant < v) capped = true;
-        gains[stat] = (gains[stat] || 0) + Math.round(grant);
+        posMax[stat] = Math.max(posMax[stat] || 0, Math.round(grant));
         entry.stat_gained = (Number(entry.stat_gained) || 0) + Math.round(grant);
         remaining -= grant;
       } else if (v < 0) {
-        gains[stat] = (gains[stat] || 0) + Math.round(v); // 负值代价：不占上限
+        negSum[stat] = (negSum[stat] || 0) + Math.round(v); // 负值代价：不占上限
       }
     }
+  }
+  const gains = {};
+  for (const stat of new Set([...Object.keys(posMax), ...Object.keys(negSum)])) {
+    const v = (posMax[stat] || 0) + (negSum[stat] || 0);
+    if (v !== 0) gains[stat] = v;
   }
   return { gains: Object.keys(gains).length > 0 ? gains : null, list, capped };
 }

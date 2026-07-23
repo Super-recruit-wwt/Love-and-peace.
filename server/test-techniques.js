@@ -670,17 +670,38 @@ let pillTestDone = Promise.resolve();
   check('凡品功法默认三元 各+2', tg.gains && tg.gains.essence === 2 && tg.gains.qi === 2 && tg.gains.spirit === 2,
     JSON.stringify(tg.gains));
 
-  // 非主修功法同样贡献：吐纳基础 + 七式快剑（均凡品）→ 各 +4
+  // 总量取单功法最大值：吐纳基础 + 七式快剑（均凡品）→ 各 +2（不再叠加为 +4）
   const tgMulti = techniques.breakthroughStatGains(fakeChar({
     learned_techniques: JSON.stringify([
       { name: '吐纳基础', depth: 0, exp: 0, main: true },
       { name: '七式快剑', depth: 0, exp: 0, main: true },
     ]),
   }));
-  check('非主修功法也加三元（两部凡品合 +4）', tgMulti.gains && tgMulti.gains.essence === 4 && tgMulti.gains.qi === 4 && tgMulti.gains.spirit === 4,
+  check('多部同修不叠加：两部凡品取 max 各 +2', tgMulti.gains && tgMulti.gains.essence === 2 && tgMulti.gains.qi === 2 && tgMulti.gains.spirit === 2,
     JSON.stringify(tgMulti.gains));
   const qjsj = tgMulti.list.find(e => e.name === '七式快剑');
   check('非主修功法各自累计 stat_gained', qjsj && qjsj.stat_gained === 6, JSON.stringify(qjsj));
+
+  // 品级取高：凡品(+2) + 圣品归元天书(精默认10/气12/神12) → 精+10 气+12 神+12，而非加总
+  const tgMax = techniques.breakthroughStatGains(fakeChar({
+    learned_techniques: JSON.stringify([
+      { name: '吐纳基础', depth: 0, exp: 0, main: true },
+      { name: '归元天书', depth: 0, exp: 0, main: false },
+    ]),
+  }));
+  check('凡品+圣品取 max（精+10 气+12 神+12）', tgMax.gains && tgMax.gains.essence === 10 && tgMax.gains.qi === 12 && tgMax.gains.spirit === 12,
+    JSON.stringify(tgMax.gains));
+
+  // 诡品负值代价与正收益并存：吐纳基础 +2 与虚海心经 -8 → 精 -6，气/神仍 +2
+  const tgMix = techniques.breakthroughStatGains(fakeChar({
+    strange_corruption: 50,
+    learned_techniques: JSON.stringify([
+      { name: '吐纳基础', depth: 0, exp: 0, main: true },
+      { name: '虚海心经', depth: 0, exp: 0, main: false },
+    ]),
+  }));
+  check('诡品代价与正收益并存（精-6 气+2 神+2）', tgMix.gains && tgMix.gains.essence === -6 && tgMix.gains.qi === 2 && tgMix.gains.spirit === 2,
+    JSON.stringify(tgMix.gains));
 
   // 上限削减：stat_gained=28 时只剩 2 点额度
   const tg2 = techniques.breakthroughStatGains(fakeChar({
@@ -768,6 +789,74 @@ let pillTestDone = Promise.resolve();
       db.prepare('DELETE FROM users WHERE id = ?').run(user.lastInsertRowid);
     }
   })();
+}
+
+// ---------- 19. 纪元大事记 ----------
+console.log('\n[19] 纪元大事记');
+{
+  const chronicle = require('./src/xianxia/chronicle');
+  const world = require('./src/xianxia/world');
+
+  // 纯生成器：连发 60 次均有标题与正文，且状态改写合法
+  const simState = JSON.parse(JSON.stringify(world.DEFAULT_WORLD_STATE));
+  let genOk = true;
+  for (let i = 0; i < 60; i++) {
+    const e = chronicle.generateYearEvent(simState, i + 2);
+    if (!e || !e.title || !e.text || e.year !== i + 2) genOk = false;
+  }
+  check('生成器 60 连发均有标题与正文', genOk);
+  const tensionsOk = Object.values(simState.faction_relations).every(r => r.tension >= 0 && r.tension <= 100);
+  check('势力张力钳制在 0-100', tensionsOk);
+  const realmsOk = Object.values(simState.secret_realms).every(r => r.status === 'active' || r.status === 'dormant');
+  check('秘境状态合法', realmsOk);
+  check('纪元年份推导（16 岁=第1年）', chronicle.gameYearOf({ game_age: 16 }) === 1 && chronicle.gameYearOf({ game_age: 22.9 }) === 7);
+
+  // 推进流程（真实落库；世界表相关键先备份、跑完恢复）
+  const KEYS = ['chronicle', 'chronicle_year', 'faction_relations', 'secret_realms'];
+  const backup = {};
+  for (const k of KEYS) {
+    const row = db.prepare('SELECT value FROM xianxia_world_state WHERE key = ?').get(k);
+    backup[k] = row ? row.value : null;
+  }
+  db.prepare("DELETE FROM xianxia_world_state WHERE key IN ('chronicle', 'chronicle_year')").run();
+
+  const email = `chron_test_${Date.now()}@example.com`;
+  const user = db.prepare('INSERT INTO users (email, password_hash, nickname) VALUES (?, ?, ?)').run(email, 'x', '大事记测试');
+  const char = db.prepare(
+    'INSERT INTO xianxia_characters (user_id, name, gender, spirit_roots, special_body, birth_region, birth_background, learned_techniques, game_age) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(user.lastInsertRowid, '纪年人', 'male', '{}', null, '中州', '猎户', '[]', 16);
+  const charId = char.lastInsertRowid;
+  try {
+    // 首次启用：快进到当前年，不补生成陈年旧事
+    const first = chronicle.advanceChronicle(charId, '16岁');
+    check('首次启用快进且无补记', first.length === 0);
+    const y1 = db.prepare("SELECT value FROM xianxia_world_state WHERE key = 'chronicle_year'").get();
+    check('chronicle_year 落库为 1', y1 && JSON.parse(y1.value) === 1, JSON.stringify(y1));
+
+    // 推进到第 7 年（22 岁）：覆盖年份 2-7，逢 5 必有一条
+    db.prepare('UPDATE xianxia_characters SET game_age = 22 WHERE id = ?').run(charId);
+    const entries = chronicle.advanceChronicle(charId, '22岁');
+    check('推进至第7年 至少一条大事（逢五必有）', entries.length >= 1, `实际 ${entries.length}`);
+    check('单次补记不超过 5 条', entries.length <= 5, `实际 ${entries.length}`);
+    const cy = db.prepare("SELECT value FROM xianxia_world_state WHERE key = 'chronicle_year'").get();
+    check('chronicle_year 推进到 7', cy && JSON.parse(cy.value) === 7, JSON.stringify(cy));
+    const ch = db.prepare("SELECT value FROM xianxia_world_state WHERE key = 'chronicle'").get();
+    const chArr = ch ? JSON.parse(ch.value) : null;
+    check('chronicle 数组已持久化', Array.isArray(chArr) && chArr.length === entries.length, JSON.stringify(chArr));
+    const tl = db.prepare("SELECT COUNT(*) AS c FROM xianxia_timeline WHERE character_id = ? AND event_type = 'world_event'").get(charId);
+    check('大事写入角色时间线', tl.c === entries.length, `实际 ${tl.c}`);
+
+    // 同年重复调用不再生成
+    const again = chronicle.advanceChronicle(charId, '22岁');
+    check('同年重复调用不重复生成', again.length === 0);
+  } finally {
+    db.prepare('DELETE FROM xianxia_characters WHERE id = ?').run(charId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(user.lastInsertRowid);
+    for (const k of KEYS) {
+      if (backup[k] == null) db.prepare('DELETE FROM xianxia_world_state WHERE key = ?').run(k);
+      else db.prepare('INSERT OR REPLACE INTO xianxia_world_state (key, value) VALUES (?, ?)').run(k, backup[k]);
+    }
+  }
 }
 
 pillTestDone.catch(e => { console.error('丹药测试异常:', e && e.message); });

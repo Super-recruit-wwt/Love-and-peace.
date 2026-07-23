@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { formatYears } from './format';
+import HoverTip from './HoverTip';
 import './xianxia-common.css';
 
 const PATH_LABELS = { xiandao: '仙道', physical: '肉身', strange: '诡道', artisan: '匠道', wanderer: '散修' };
@@ -76,6 +77,7 @@ export default function ProfilePage() {
   const [character, setCharacter] = useState(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(null); // 正在设为主修的功法名
+  const [sanyuanTip, setSanyuanTip] = useState(null); // 功法三元滋养规则悬浮层
 
   useEffect(() => {
     api.get(`/xianxia/characters/${characterId}`).then(res => {
@@ -110,6 +112,18 @@ export default function ProfilePage() {
 
   return (
     <div className="x-page">
+      {/* 功法三元滋养规则悬浮层（fixed 定位到视口，不受面板裁剪；滚动/resize 时隐藏） */}
+      {sanyuanTip && (
+        <HoverTip rect={sanyuanTip.rect} width={270} prefer="right" className="x-stat-tip" onClose={() => setSanyuanTip(null)}>
+          <div className="x-stat-tip-title">三元滋养 · 《{sanyuanTip.name}》</div>
+          <div className="x-stat-tip-line">突破大境界时，所修功法滋养精、气、神。</div>
+          <div className="x-stat-tip-line">· 各系只取加成最高的一部功法生效，多部同修不叠加</div>
+          <div className="x-stat-tip-line">· 品级越高，加成越多、上限越高（凡/灵/宝/玄/圣：30/60/120/200/400）</div>
+          <div className="x-stat-tip-line">
+            · 此功法已滋养 {sanyuanTip.gained}/{sanyuanTip.cap}{sanyuanTip.gained >= sanyuanTip.cap ? '——已耗尽，不再提供' : ''}
+          </div>
+        </HoverTip>
+      )}
       <div className="x-header">
         <h1 className="t-heading">{character.name} · 详情</h1>
         <button className="btn-outline" onClick={() => navigate(`/xianxia/${characterId}`)}>返回主界面</button>
@@ -195,7 +209,16 @@ export default function ProfilePage() {
                         {t.main && <span className="x-row-accent" style={{ marginRight: '6px' }}>主修</span>}
                         《{t.name}》
                         <span className="x-row-sub" style={{ marginLeft: '8px' }}>
-                          {t.grade} · {t.depth_label}{t.next_exp != null ? `（${t.exp}/${t.next_exp}）` : ''}{t.faction ? ` · ${t.faction}` : ''}{t.stat_cap != null && ` · 三元 ${t.stat_gained || 0}/${t.stat_cap}`}
+                          {t.grade} · {t.depth_label}{t.next_exp != null ? `（${t.exp}/${t.next_exp}）` : ''}{t.faction ? ` · ${t.faction}` : ''}
+                          {t.stat_cap != null && (
+                            <span
+                              style={{ cursor: 'help', borderBottom: '1px dashed var(--color-ink-3)' }}
+                              onMouseEnter={(e) => setSanyuanTip({ rect: e.currentTarget.getBoundingClientRect(), name: t.name, gained: t.stat_gained || 0, cap: t.stat_cap })}
+                              onMouseLeave={() => setSanyuanTip(null)}
+                            >
+                              {` · 三元 ${t.stat_gained || 0}/${t.stat_cap}`}
+                            </span>
+                          )}
                         </span>
                         {!t.main && (
                           <button

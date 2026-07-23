@@ -140,7 +140,7 @@ async function completeBreakthrough(characterId) {
       ).run(delta, characterId);
     }
 
-    // 主修功法的突破三元加成（精/气/神，clamp 0-999；诡道功法可为负值代价）
+    // 所修功法的突破三元加成（精/气/神，clamp 0-999；各系正收益取单部功法最大值，诡道负值代价照常生效）
     for (const [key, delta] of Object.entries(results.statGains || {})) {
       if (!delta) continue;
       db.prepare(
@@ -270,7 +270,7 @@ function resolveBreakthroughResult(character, timerType) {
 
   const roll = Math.random();
 
-  // 所修诸功法三元加成（每部独立消耗品级上限）；sg.list 含 stat_gained 累计，供深度经验链使用
+  // 所修诸功法三元加成（各系正收益取单部功法最大值，每部仍独立消耗品级上限）；sg.list 含 stat_gained 累计，供深度经验链使用
   const GAIN_LABELS = { essence: '精', qi: '气', spirit: '神' };
   const sg = techniques.breakthroughStatGains(character);
   const charForDepth = { ...character, learned_techniques: JSON.stringify(sg.list) };
