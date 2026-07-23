@@ -1,5 +1,6 @@
 // 剧本：探索 — 精气神修正（精-受伤，气-灵石，神-线索发现）
 const { regionOf, rand, randf, pick } = require('./utils');
+const techniques = require('../techniques');
 
 const CLUES = [
   '你无意中听到路人提起：苍梧山脉深处近来有异光冲天，深夜尤甚。',
@@ -38,8 +39,30 @@ module.exports = {
     const injured = Math.random() < injuryChance;
     const injuryDelta = injured ? -rand(3, 8) : 0;
 
+    // 7% 功法残卷（奇遇：习得未掌握的术法/身法/秘术，凡50% 灵35% 宝15%）
+    if (roll > 0.93) {
+      const art = techniques.randomUnlearnedArt(character);
+      if (art) {
+        const { list, learned } = techniques.learnTechnique(character, art.name, { makeMain: false });
+        if (learned) {
+          const deltas = {};
+          if (injured) deltas.health = injuryDelta;
+          const typeLabel = { spell: '术法', movement: '身法', secret: '秘术' }[art.type] || '功法';
+          return {
+            deltas,
+            sets: { learned_techniques: JSON.stringify(list) },
+            extraRewards: [{ text: `习得《${art.name}》`, tone: 'gain' }],
+            elapsedDays,
+            resultText: `探索${elapsedDays}天，你在一处坍塌的石龛里摸到半卷残页——竟是${art.grade}${typeLabel}《${art.name}》！你如获至宝，日夜揣摩，已初窥门径。${injured ? ` 途中被落石砸伤——生命 ${injuryDelta}` : ''}`,
+            renderParams: { outcome: 'technique_scroll', technique: art.name, grade: art.grade, injured },
+            options: ['闭关参悟新功法', '继续探索', '回去休整'],
+          };
+        }
+      }
+      // 无可学功法时落入线索分支
+    }
     // 15% 线索（高神加成）
-    if (roll > 0.85) {
+    if (roll > 0.78) {
       const clue = pick(CLUES);
       const deltas = {};
       if (injured) deltas.health = injuryDelta;

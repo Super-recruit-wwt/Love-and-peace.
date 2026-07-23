@@ -371,10 +371,7 @@
 
 /* 物品悬停提示浮层 */
 .x-item-tooltip {
-  position: fixed;
-  z-index: 1000;
-  bottom: 80px;
-  right: 20px;
+  /* 定位由 HoverTip 组件以 position:fixed + inline left/top 提供，不受面板 overflow 裁剪 */
   max-width: 280px;
   background: var(--color-porcelain);
   border: 1px solid var(--color-hairline);
@@ -384,6 +381,7 @@
   font-size: 13px;
   line-height: 1.7;
   animation: fadeRise 0.2s var(--ease-soft) both;
+  pointer-events: none;
 }
 .x-item-tooltip-name {
   font-family: var(--font-display-cn);
@@ -408,11 +406,7 @@
   position: relative;
 }
 .x-stat-tip {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 60;
+  /* 定位由 HoverTip 组件以 position:fixed + inline left/top 提供，不受面板 overflow 裁剪 */
   width: 240px;
   padding: 10px 12px;
   background: var(--color-porcelain, #f7f9f8);
@@ -439,6 +433,67 @@
   color: var(--color-ink-2, #3d4a44);
 }
 @keyframes statTipFade {
-  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 境界路径悬浮窗 */
+.x-path-tip {
+  width: 280px;
+}
+
+.x-path-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  margin-bottom: 6px;
+}
+
+.x-path-stage {
+  font-family: "SimSun", "宋体", serif;
+  font-size: 12px;
+  color: var(--color-ink-3, #8a938f);
+  white-space: nowrap;
+}
+
+.x-path-arrow {
+  color: var(--color-hairline, #d9d3c9);
+  margin-right: 4px;
+  font-size: 10px;
+}
+
+.x-path-stage-passed {
+  color: var(--color-celadon, #46685b);
+}
+
+.x-path-stage-current {
+  color: #fff;
+  background: var(--color-ink, #2b2b2b);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-weight: bold;
+}
+
+.x-path-stage-current .x-path-arrow {
+  color: var(--color-hairline, #d9d3c9);
+  margin-left: -4px;
+}
+
+.x-path-sub {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--color-lotus, #b8a89a);
+  margin-left: 4px;
+}
+
+[data-theme="dark"] .x-path-stage-current {
+  color: var(--color-ink, #2b2b2b);
+  background: var(--color-paper, #f5f2ec);
+}
+
+.x-path-note {
+  border-top: 1px solid rgba(70, 104, 91, 0.25);
+  padding-top: 6px;
+  margin-top: 2px;
 }

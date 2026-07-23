@@ -25,6 +25,10 @@ export default function MapPage() {
     api.get('/xianxia/characters/' + characterId).then(function(res) {
       setCharacter(res);
       var list = res.discovered_locations || [];
+      // 防御：服务端返回 JSON 字符串时手动解析（历史版本曾直接下发字符串）
+      if (typeof list === 'string') {
+        try { list = JSON.parse(list || '[]'); } catch (e) { list = []; }
+      }
       // 兜底：存量角色从未发现过地点时自动触发一次发现（新角色创建时已自带初始发现）
       if (list.length === 0) {
         api.get('/xianxia/characters/' + characterId + '/discover-locations')

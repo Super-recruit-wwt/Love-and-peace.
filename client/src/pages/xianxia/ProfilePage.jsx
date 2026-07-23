@@ -6,12 +6,76 @@ import './xianxia-common.css';
 
 const PATH_LABELS = { xiandao: '仙道', physical: '肉身', strange: '诡道', artisan: '匠道', wanderer: '散修' };
 const ITEM_TYPE_LABELS = { technique: '功法', pill: '丹药', treasure: '法宝', material: '材料', spirit_stone: '灵石', misc: '杂物' };
+const TECH_TYPE_LABELS = { heart: '心法', spell: '术法', movement: '身法', secret: '秘术', strange_art: '诡术' };
+
+// 功法代价词条（秘术/诡术）
+const TECH_COST_LABELS = { health: '生命', spirit: '神', qi_current_ratio: '灵力比例', lifespan: '寿元', spirit_stones: '灵石' };
+
+// 功法效果中文化（仅展示已知字段，未知字段不显示避免英文泄漏）
+const TECH_EFFECT_FORMATTERS = {
+  efficiency: v => `修炼效率 ×${v}`,
+  qi_max: v => `气海底蕴 ${v}`,
+  learn_speed: v => `领悟速度 ×${v}`,
+  essence_per_break: v => `突破凝精 ${v > 0 ? '+' : ''}${v}`,
+  qi_per_break: v => `突破炼气 ${v > 0 ? '+' : ''}${v}`,
+  spirit_per_break: v => `突破凝神 ${v > 0 ? '+' : ''}${v}`,
+  combat_bonus: v => `战斗加成 +${Math.round(v * 100)}%`,
+  evil_bonus: v => `对邪修加成 +${Math.round(v * 100)}%`,
+  life_steal: v => `气血吸取 ${Math.round(v * 100)}%`,
+  damage_reduce: v => `减伤 ${Math.round(v * 100)}%`,
+  debuff_reduce: v => `负面抵抗 ${Math.round(v * 100)}%`,
+  poison_resist: v => `毒抗 ${Math.round(v * 100)}%`,
+  poison_craft: v => `毒术炼制 ×${v}`,
+  poison_dot: v => `剧毒叠伤 ${v}`,
+  water_bonus: v => `水系威力 ×${v}`,
+  water_resist: v => `水系抗性 ${Math.round(v * 100)}%`,
+  ice_bonus: v => `冰系威力 ×${v}`,
+  cold_power: v => `寒劲 ×${v}`,
+  beast_power: v => `驭兽之力 ×${v}`,
+  gu_bonus: v => `蛊术威力 ×${v}`,
+  sword_power: v => `剑法威力 ×${v}`,
+  pet_slots: v => `灵宠栏位 +${v}`,
+  pet_battle: v => `灵宠战力 +${Math.round(v * 100)}%`,
+  gu_pet: v => `本命蛊 +${v}`,
+  heal_speed: v => `恢复速度 ×${v}`,
+  foe_debuff: v => `敌方削弱 ${Math.round(v * 100)}%`,
+  no_sect_bonus: v => `散修加成 ×${v}`,
+  corruption_suppress: v => `异化压制 ${v}`,
+  corruption_decay: v => `异化消解 ${v}`,
+  death_keep_stones: v => `陨落保灵石 ${Math.round(v * 100)}%`,
+  attack: v => `攻击 +${v}`,
+  defense: v => `防御 +${v}`,
+  speed: v => `行速 ×${v}`,
+  dodge: v => `闪避 ${Math.round(v * 100)}%`,
+  burn: v => `灼烧 ${v}`,
+  freeze: v => `冻结 ${Math.round(v * 100)}%`,
+  slow: v => `迟滞 ${Math.round(v * 100)}%`,
+  stun: v => `眩晕 ${Math.round(v * 100)}%`,
+  pierce: v => `破甲 ${Math.round(v * 100)}%`,
+  heal: v => `恢复生命 +${v}`,
+  corruption: v => `异化 +${v}`,
+  power_buff_pct: v => `临时战力 +${Math.round(v * 100)}%`,
+  breakthrough_spirit: v => `破境神识 +${v}`,
+  escape: () => '遁走千里',
+  rob_item: () => '顺手取材',
+  random_material: () => '虚质成物',
+  spirit_stones: v => Array.isArray(v) ? `灵石 ${v[0]}~${v[1]}` : `灵石 +${v}`,
+  cost: v => `代价：${Object.entries(v).map(([k, n]) => `${TECH_COST_LABELS[k] || k} -${k === 'qi_current_ratio' ? Math.round(n * 100) + '%' : n}`).join('，')}`,
+};
+const TECH_FLAG_LABELS = {
+  cold_immune: '寒冻免疫', poison_immune: '万毒不侵', fracture_immune: '骨折免疫',
+  carry_bonus: '负重天赋', desert_navigate: '沙海辨途', sea_explore: '深海探索',
+  ice_slow: '寒冰迟滞', ignore_defense: '破防', dao_preserve: '道基稳固',
+  break_degrade_reduce: '跌落减免', sword_insight: '剑心通明', golden_body: '金刚不坏',
+  shadow_independent: '影神自立', spirit_growth: '神识茁壮',
+};
 
 export default function ProfilePage() {
   const { characterId } = useParams();
   const navigate = useNavigate();
   const [character, setCharacter] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(null); // 正在设为主修的功法名
 
   useEffect(() => {
     api.get(`/xianxia/characters/${characterId}`).then(res => {
@@ -19,6 +83,21 @@ export default function ProfilePage() {
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [characterId]);
+
+  // 设置某功法为其类型的主修（每个类型各一个主修）
+  const setMainTechnique = async (name) => {
+    if (switching) return;
+    setSwitching(name);
+    try {
+      await api.post(`/xianxia/characters/${characterId}/technique-main`, { name });
+      const res = await api.get(`/xianxia/characters/${characterId}`);
+      setCharacter(res);
+    } catch (e) {
+      alert(e.message || '切换主修失败');
+    } finally {
+      setSwitching(null);
+    }
+  };
 
   if (loading) return <div className="x-loading">加载中……</div>;
   if (!character) return <div className="x-loading">角色不存在</div>;
@@ -86,6 +165,59 @@ export default function ProfilePage() {
           ))
         ) : (
           <p className="x-row-sub">尚未踏入修炼之路</p>
+        )}
+      </section>
+
+      <section className="card-porcelain x-section">
+        <span className="mono-label">功法</span>
+        {(character.learned_techniques || []).length > 0 ? (
+          ['heart', 'spell', 'movement', 'secret', 'strange_art'].map(type => {
+            const group = character.learned_techniques.filter(t => (t.type || 'heart') === type);
+            if (group.length === 0) return null;
+            return (
+              <div key={type} style={{ marginBottom: '10px' }}>
+                <span className="x-row-sub" style={{ display: 'block', marginBottom: '4px' }}>
+                  {TECH_TYPE_LABELS[type]}（主修一部，相关行为精进更快）
+                </span>
+                {group.map(t => {
+                  const effects = Object.entries(t.effect || {})
+                    .map(([k, v]) => {
+                      if (k === 'cost' && v && typeof v === 'object') return TECH_EFFECT_FORMATTERS.cost(v);
+                      if (Array.isArray(v) && TECH_EFFECT_FORMATTERS[k]) return TECH_EFFECT_FORMATTERS[k](v);
+                      if (typeof v === 'number' && TECH_EFFECT_FORMATTERS[k]) return TECH_EFFECT_FORMATTERS[k](v);
+                      if (v === true && (TECH_FLAG_LABELS[k] || TECH_EFFECT_FORMATTERS[k])) return (TECH_FLAG_LABELS[k] || TECH_EFFECT_FORMATTERS[k](v));
+                      return null;
+                    })
+                    .filter(Boolean);
+                  return (
+                    <div className="x-row" key={t.name}>
+                      <span className="x-row-main">
+                        {t.main && <span className="x-row-accent" style={{ marginRight: '6px' }}>主修</span>}
+                        《{t.name}》
+                        <span className="x-row-sub" style={{ marginLeft: '8px' }}>
+                          {t.grade} · {t.depth_label}{t.next_exp != null ? `（${t.exp}/${t.next_exp}）` : ''}{t.faction ? ` · ${t.faction}` : ''}{t.stat_cap != null && ` · 三元 ${t.stat_gained || 0}/${t.stat_cap}`}
+                        </span>
+                        {!t.main && (
+                          <button
+                            className="btn-outline"
+                            style={{ padding: '2px 10px', fontSize: '12px', marginLeft: '8px' }}
+                            disabled={switching === t.name}
+                            onClick={() => setMainTechnique(t.name)}
+                          >
+                            {switching === t.name ? '切换中…' : '设为主修'}
+                          </button>
+                        )}
+                      </span>
+                      {effects.length > 0 && <span className="x-row-sub">{effects.join('，')}</span>}
+                      {t.locked_count > 0 && <span className="x-row-sub">未参透 {t.locked_count} 项</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })
+        ) : (
+          <p className="x-row-sub">尚未习得任何功法</p>
         )}
       </section>
 

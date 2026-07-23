@@ -142,4 +142,103 @@ function prevXianStageWithinRealm(current) {
   return bigRealmOf(prev) === bigRealmOf(current) ? prev : null;
 }
 
-module.exports = { parseJson, avgRoot, cultivationTier, power, regionOf, rand, randf, pick, parseDurationDays, CN_NUM, isValidLocation, XIAN_STAGES, BIG_REALM_BASE_QI, bigRealmOf, subStageIndex, qiMaxForStage, nextXianStage, prevXianStageWithinRealm };
+/**
+ * 地点情境化行动选项：按 current_location 的地点类型返回 2-3 个贴合场景的行动
+ * 判定顺序：诡道 > 坊市 > 遗迹 > 城市 > 宗门 > 野外默认（雾中村含"村"但属诡道，须先判）
+ */
+function optionsForLocation(character) {
+  const loc = ((character && character.current_location) || '').split('-').pop() || '';
+  if (/深渊裂隙|雾中村|虚海|裂隙|诡/.test(loc)) {
+    return ['靠近查看', '远远观察', '离开此地'];
+  }
+  if (/坊市|商会|黑水港|港|集市/.test(loc)) {
+    return ['逛逛摊位', '出售材料', '购买补给'];
+  }
+  if (/遗迹|秘境|古矿|废墟|遗址/.test(loc)) {
+    return ['探索遗迹', '小心深入', '离开'];
+  }
+  if (/城|王朝|都城|镇|村/.test(loc)) {
+    return ['打听消息', '寻找落脚处', '坊市交易'];
+  }
+  if (/宗|门|寺|阁|谷|山|宫|殿|教|观/.test(loc)) {
+    return ['拜入宗门', '打听消息', '在附近修炼'];
+  }
+  return ['探索四周', '修炼', '采集材料'];
+}
+
+const BREAKTHROUGH_OPTION = '冲击瓶颈，尝试突破';
+
+// ==================== 临时 buff（duration 类丹药） ====================
+// active_buffs 结构：[{ stat, value, remaining, unit }]
+// unit: cultivation=下一次修炼消费 | actions=按行动次数 | battle=下一次切磋 | breakthrough=下一次突破判定
+
+/** 某属性的 buff 加成总和（cultivation_efficiency 之类乘区请用 buffMult） */
+function buffSum(character, stat) {
+  const buffs = parseJson(character && character.active_buffs, []);
+  return buffs.filter(b => b.stat === stat).reduce((a, b) => a + (Number(b.value) || 0), 0);
+}
+
+/** 读取属性时叠加 buff（判定函数统一入口） */
+function effStat(character, stat, def) {
+  const base = character && character[stat] != null ? character[stat] : def;
+  return base + buffSum(character, stat);
+}
+
+/** 乘区 buff（如聚灵丹 cultivation_efficiency ×1.3），无 buff 返回 1 */
+function buffMult(character, stat) {
+  const buffs = parseJson(character && character.active_buffs, []);
+  return buffs.filter(b => b.stat === stat).reduce((a, b) => a * (Number(b.value) || 1), 1);
+}
+
+/** 消费某 unit 的 buff（remaining -1，耗尽移除），返回新数组（纯函数，调用方负责落库） */
+function consumeBuffs(character, unit) {
+  const buffs = parseJson(character && character.active_buffs, []);
+  const kept = [];
+  for (const b of buffs) {
+    if (b.unit === unit) {
+      const r = (b.remaining || 1) - 1;
+      if (r > 0) kept.push({ ...b, remaining: r });
+    } else {
+      kept.push(b);
+    }
+  }
+  return kept;
+}
+
+/** pills.json 的 duration 值 → buff 数组 */
+function buffsFromPillEffect(effect) {
+  const UNIT_MAP = { next: 'cultivation', '3_actions': 'actions', '1_battle': 'battle', '1_breakthrough': 'breakthrough', '1_insight': 'insight' };
+  const unit = UNIT_MAP[effect.duration];
+  if (!unit) return null;
+  const remaining = effect.duration === '3_actions' ? 3 : 1;
+  const buffs = [];
+  for (const [key, val] of Object.entries(effect)) {
+    if (typeof val === 'number' && ['qi', 'essence', 'spirit', 'cultivation_efficiency', 'insight_mult'].includes(key)) {
+      buffs.push({ stat: key, value: val, remaining, unit });
+    }
+  }
+  return buffs.length > 0 ? buffs : null;
+}
+
+/**
+ * options 统一出口：修为满（qi_current >= qi_max）时首位保证突破选项；
+ * 修为不满时剔除突破选项（防呆，剧本可能误带）。始终去重。
+ */
+function withBreakthroughOption(character, options) {
+  const list = (options || []).filter(o => o && o !== BREAKTHROUGH_OPTION);
+  const qiMax = (character && character.qi_max) || 0;
+  const qiCur = (character && character.qi_current) || 0;
+  if (qiMax > 0 && qiCur >= qiMax) list.unshift(BREAKTHROUGH_OPTION);
+  return list;
+}
+
+// ==================== 身体状态（伤病）关键词 ====================
+// 注意：写入 body_status 的文案（breakthrough.js / breakthrough_attempt.js）须命中下表关键词，否则永远无法恢复/生效
+
+/** 重伤病：修炼效率减半（cultivation_routine）——受创/受损/重伤/走火入魔 */
+const SERIOUS_INJURY_PATTERN = /受创|受损|重伤|走火入魔/;
+
+/** 可静养痊愈的旧伤：静养≥3天洗回康健（rest_recover）——另含突破成功的"轻微损耗"与小境界失败的"气血翻涌" */
+const RECOVERABLE_INJURY_PATTERN = /受创|受损|翻涌|重伤|走火入魔|损耗/;
+
+module.exports = { parseJson, avgRoot, cultivationTier, power, regionOf, rand, randf, pick, parseDurationDays, CN_NUM, isValidLocation, XIAN_STAGES, BIG_REALM_BASE_QI, bigRealmOf, subStageIndex, qiMaxForStage, nextXianStage, prevXianStageWithinRealm, optionsForLocation, withBreakthroughOption, BREAKTHROUGH_OPTION, buffSum, effStat, buffMult, consumeBuffs, buffsFromPillEffect, SERIOUS_INJURY_PATTERN, RECOVERABLE_INJURY_PATTERN };

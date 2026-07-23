@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { formatAge, formatYears } from './format';
+import HoverTip from './HoverTip';
 import './xianxia-common.css';
 import './main.css';
 
@@ -39,6 +40,55 @@ const STAT_TIPS = {
   },
 };
 
+// 五条修炼路线的完整境界路径（悬浮在境界上展示，当前阶段高亮）
+const PATH_TIPS = {
+  xiandao: {
+    label: '仙道',
+    title: '仙道正统 · 境界之路',
+    stages: ['炼气', '筑基', '金丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫飞升'],
+    note: '每境分四小阶：初期 → 中期 → 后期 → 圆满。修满当前境界修为方可冲击下一境。',
+  },
+  physical: {
+    label: '肉身',
+    title: '肉身成圣 · 炼体之路',
+    stages: ['铜皮', '铁骨', '银血', '金身', '玉髓', '金刚', '不灭', '万象', '肉身成圣'],
+    note: '不修法术只炼体魄，每进一步都是肉身劫。',
+  },
+  strange: {
+    label: '诡道',
+    title: '诡道 · 异化之路',
+    stages: ['初触', '共生', '同化', '深渊', '化诡', '噬主', '规则掌控'],
+    note: '诡道不可逆——每向上一步，离"人"就远一步。终点不是飞升，是成为规则本身。',
+  },
+  artisan: {
+    label: '匠道',
+    title: '凡人匠道 · 技艺之路',
+    stages: ['学徒', '匠师', '大师', '宗师', '圣手', '开派祖师'],
+    note: '不修境界，以名望与技艺等级衡量，突破方式是完成"心血之作"。',
+  },
+  loose: {
+    label: '散修',
+    title: '散修野路 · 战力之路',
+    stages: ['凡俗', '初窥', '小成', '大成', '一方豪强', '半步飞升'],
+    note: '不入宗门不碰邪物，进步发生在生死之间的顿悟。',
+  },
+};
+
+// 从境界字符串（如"炼气中期"）解析当前阶段序号与小阶
+function parsePathStage(routeKey, value) {
+  const def = PATH_TIPS[routeKey];
+  if (!def || !value) return { idx: -1, sub: '' };
+  for (let i = 0; i < def.stages.length; i++) {
+    if (value.startsWith(def.stages[i])) {
+      return { idx: i, sub: value.slice(def.stages[i].length) };
+    }
+  }
+  // 渡劫飞升等特殊终态
+  const last = def.stages[def.stages.length - 1];
+  if (value.includes(last) || last.includes(value)) return { idx: def.stages.length - 1, sub: '' };
+  return { idx: -1, sub: '' };
+}
+
 function parseOptions(raw) {
   if (!raw) return null;
   try {
@@ -53,6 +103,14 @@ function parseRewards(raw) {
     const arr = JSON.parse(raw);
     return Array.isArray(arr) && arr.length > 0 ? arr : null;
   } catch { return null; }
+}
+
+// 前端保险：修为满时 suggestions 首位保证"冲击瓶颈"（服务端正源已统一处理，这里兜底）
+function ensureBreakthroughFirst(ch, opts) {
+  const BT = '冲击瓶颈，尝试突破';
+  const list = (opts || []).filter(o => o && o !== BT);
+  if (ch && ch.qi_max > 0 && (ch.qi_current || 0) >= ch.qi_max) list.unshift(BT);
+  return list;
 }
 
 export default function MainPage() {
@@ -70,9 +128,12 @@ export default function MainPage() {
   const [actionError, setActionError] = useState('');
   const [timer, setTimer] = useState(null);
   const [timerNarrative, setTimerNarrative] = useState('');
-  const [hoveredItem, setHoveredItem] = useState(null);
+  const [hoveredItem, setHoveredItem] = useState(null); // { knowledge..., rect } — rect 为 trigger 屏幕坐标
   const [itemUseMsg, setItemUseMsg] = useState(null);
-  const [statTip, setStatTip] = useState(null); // 'essence' | 'qi' | 'spirit' | null
+  const [statTip, setStatTip] = useState(null); // { key: 'essence'|'qi'|'spirit', rect } | null
+  const [qiTip, setQiTip] = useState(null); // { rect } | null — 修为行悬浮
+  const [pathTip, setPathTip] = useState(null); // { key: 修炼路线 key, rect } | null
+  const [locationOptions, setLocationOptions] = useState([]); // 地点情境化选项（suggestions 兜底）
   const timelineRef = useRef(null);
   const stickToBottom = useRef(true);
 
@@ -121,9 +182,11 @@ export default function MainPage() {
       setTimeline(tlRes.events);
       setHasMore(tlRes.events.length === PAGE_SIZE);
       stickToBottom.current = true;
-      // 建议选项：取最近一条带选项的叙事
+      // 地点情境化选项：行动返回 options 优先，此处作兜底
+      setLocationOptions(res.location_options || []);
+      // 建议选项：取最近一条带选项的叙事；没有则用地名情境选项兜底
       const latestWithOptions = [...tlRes.events].reverse().find(e => parseOptions(e.options));
-      setSuggestions(parseOptions(latestWithOptions?.options) || []);
+      setSuggestions(parseOptions(latestWithOptions?.options) || res.location_options || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }
@@ -197,18 +260,23 @@ export default function MainPage() {
         }]);
       }
 
-      // 更新建议选项（AI/剧本每回合给出；无则隐藏"当下可行"行）
-      setSuggestions(res.options && res.options.length > 0 ? res.options : []);
+      // 刷新角色状态
+      const updated = await api.get(`/xianxia/characters/${characterId}`);
+      setCharacter(updated);
+      setLocationOptions(updated.location_options || []);
+
+      // 更新建议选项：行动返回的 options 优先；空则用地名情境选项兜底
+      if (res.options && res.options.length > 0) {
+        setSuggestions(res.options);
+      } else {
+        setSuggestions(updated.location_options || []);
+      }
 
       // 如果触发了倒计时
       if (res.timer) {
         setTimer(res.timer.remaining);
         setTimerNarrative(res.timer.narrative);
       }
-
-      // 刷新角色状态
-      const updated = await api.get(`/xianxia/characters/${characterId}`);
-      setCharacter(updated);
 
       setActing(false);
     } catch (err) {
@@ -247,6 +315,8 @@ export default function MainPage() {
   const paths = character.cultivation_paths || {};
   const roots = character.spirit_roots || {};
   const items = character.items || [];
+  // 临时丹药 buff（duration 类）：三元旁显示 +N
+  const buffFor = (stat) => (character.active_buffs || []).filter(b => b.stat === stat).reduce((a, b) => a + (Number(b.value) || 0), 0);
   // 行囊堆叠：相同名称+类型+品级的物品合并
   var stackedMap = {};
   items.filter(function(i) { return !i.is_equipped; }).forEach(function(item) {
@@ -261,6 +331,72 @@ export default function MainPage() {
 
   return (
     <div className="x-main-layout">
+      {/* 悬浮层统一出口：fixed 定位到视口，不受面板 overflow 裁剪；滚动/resize 时隐藏 */}
+      {statTip && (
+        <HoverTip rect={statTip.rect} width={240} prefer="left" className="x-stat-tip" onClose={function() { setStatTip(null); }}>
+          <div className="x-stat-tip-title">{STAT_TIPS[statTip.key].title}</div>
+          {STAT_TIPS[statTip.key].lines.map(function(line, i) {
+            return <div key={i} className="x-stat-tip-line">{line}</div>;
+          })}
+        </HoverTip>
+      )}
+      {qiTip && character && (
+        <HoverTip rect={qiTip.rect} width={240} prefer="left" className="x-stat-tip" onClose={function() { setQiTip(null); }}>
+          <div className="x-stat-tip-title">修为 · 破境之基</div>
+          <div className="x-stat-tip-line">当前修为 {character.qi_current} / 上限 {character.qi_max}</div>
+          <div className="x-stat-tip-line">· 修为上限随境界成长，境界越高上限越高</div>
+          <div className="x-stat-tip-line">· 修满上限方可冲击突破；突破无论成败，修为归零重修</div>
+          {character.qi_current >= character.qi_max && (
+            <div className="x-stat-tip-line" style={{color:'var(--color-celadon)'}}>· 修为已满——可以冲击突破了</div>
+          )}
+        </HoverTip>
+      )}
+      {pathTip && PATH_TIPS[pathTip.key] && (function() {
+        var def = PATH_TIPS[pathTip.key];
+        var stage = parsePathStage(pathTip.key, paths[pathTip.key]);
+        return (
+          <HoverTip rect={pathTip.rect} width={280} prefer="left" className="x-stat-tip x-path-tip" onClose={() => setPathTip(null)}>
+            <div className="x-stat-tip-title">{def.title}</div>
+            <div className="x-path-chain">
+              {def.stages.map((s, i) => (
+                <span key={s} className={`x-path-stage${i === stage.idx ? ' x-path-stage-current' : ''}${stage.idx >= 0 && i < stage.idx ? ' x-path-stage-passed' : ''}`}>
+                  {i > 0 && <span className="x-path-arrow">→</span>}
+                  {s}
+                  {i === stage.idx && stage.sub && <em className="x-path-sub">{stage.sub}</em>}
+                </span>
+              ))}
+            </div>
+            <div className="x-stat-tip-line x-path-note">{def.note}</div>
+          </HoverTip>
+        );
+      })()}
+      {hoveredItem && (
+        <HoverTip rect={hoveredItem.rect} width={280} prefer="left" className="x-item-tooltip" onClose={function() { setHoveredItem(null); }}>
+          <div className="x-item-tooltip-name">{hoveredItem.name}</div>
+          <div className="mono-label" style={{fontSize:10,marginBottom:4}}>{hoveredItem.item_type} · {hoveredItem.grade || '凡品'}{hoveredItem.quantity > 1 ? ' · ×' + hoveredItem.quantity : ''}</div>
+          <div style={{fontSize:12,lineHeight:1.7}}>
+            {hoveredItem.known_effects && hoveredItem.known_effects.length > 0 && (
+              <div style={{marginTop:4}}>
+                <span className="mono-label" style={{fontSize:10,color:'var(--color-celadon)'}}>效果：</span>
+                {hoveredItem.known_effects.map(function(e, i) { return <div key={i} style={{fontSize:11}}>• {e}</div>; })}
+              </div>
+            )}
+            {hoveredItem.raw_effects && hoveredItem.raw_effects.length > 0 && (
+              <div style={{marginTop:4}}>
+                <span className="mono-label" style={{fontSize:10,color:'var(--color-ink-2)'}}>生服效果：</span>
+                {hoveredItem.raw_effects.map(function(e, i) { return <div key={i} style={{fontSize:11}}>• {e}</div>; })}
+              </div>
+            )}
+            {hoveredItem.hidden_effects && hoveredItem.hidden_effects.length > 0 && (
+              <div style={{marginTop:4}}>
+                <span className="mono-label" style={{fontSize:10,color:'var(--color-seal)'}}>隐藏属性：</span>
+                {hoveredItem.hidden_effects.map(function(e, i) { return <div key={i} style={{fontSize:11}}>• {e}</div>; })}
+              </div>
+            )}
+          </div>
+        </HoverTip>
+      )}
+
       {/* 左侧：世界信息 */}
       <aside className="x-panel x-panel-left">
         <div className="x-panel-header">
@@ -286,34 +422,6 @@ export default function MainPage() {
               <span className="x-info-value">等待探索……</span>
             </div>
           )}
-
-      {/* 物品悬停提示 */}
-      {hoveredItem && (
-        <div className="x-item-tooltip">
-          <div className="x-item-tooltip-name">{hoveredItem.name}</div>
-          <div className="mono-label" style={{fontSize:10,marginBottom:4}}>{hoveredItem.item_type} · {hoveredItem.grade || '凡品'}{hoveredItem.quantity > 1 ? ' · ×' + hoveredItem.quantity : ''}</div>
-          <div style={{fontSize:12,lineHeight:1.7}}>
-            {hoveredItem.known_effects && hoveredItem.known_effects.length > 0 && (
-              <div style={{marginTop:4}}>
-                <span className="mono-label" style={{fontSize:10,color:'var(--color-celadon)'}}>效果：</span>
-                {hoveredItem.known_effects.map(function(e, i) { return <div key={i} style={{fontSize:11}}>• {e}</div>; })}
-              </div>
-            )}
-            {hoveredItem.raw_effects && hoveredItem.raw_effects.length > 0 && (
-              <div style={{marginTop:4}}>
-                <span className="mono-label" style={{fontSize:10,color:'var(--color-ink-2)'}}>生服效果：</span>
-                {hoveredItem.raw_effects.map(function(e, i) { return <div key={i} style={{fontSize:11}}>• {e}</div>; })}
-              </div>
-            )}
-            {hoveredItem.hidden_effects && hoveredItem.hidden_effects.length > 0 && (
-              <div style={{marginTop:4}}>
-                <span className="mono-label" style={{fontSize:10,color:'var(--color-seal)'}}>隐藏属性：</span>
-                {hoveredItem.hidden_effects.map(function(e, i) { return <div key={i} style={{fontSize:11}}>• {e}</div>; })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 物品使用反馈 */}
       {itemUseMsg && (
@@ -397,10 +505,10 @@ export default function MainPage() {
                   <button key={a} className="chip chip-quick" onClick={() => handleAction(a)} disabled={acting}>{a}</button>
                 ))}
               </div>
-              {suggestions.length > 0 && (
+              {ensureBreakthroughFirst(character, suggestions).length > 0 && (
                 <div className="x-suggestions">
                   <span className="x-quick-label mono-label">当下可行</span>
-                  {suggestions.map(s => (
+                  {ensureBreakthroughFirst(character, suggestions).map(s => (
                     <button key={s} className="chip" onClick={() => handleAction(s)} disabled={acting}>{s}</button>
                   ))}
                 </div>
@@ -448,8 +556,11 @@ export default function MainPage() {
               <span className="x-info-label">生命</span>
               <span className="x-info-value">{character.health}</span>
             </div>
-            <div className="x-info-block" style={{flex:1}}>
-              <span className="x-info-label">修为</span>
+            <div className="x-info-block" style={{flex:1}}
+              onMouseEnter={function(e) { setQiTip({ rect: e.currentTarget.getBoundingClientRect() }); }}
+              onMouseLeave={function() { setQiTip(null); }}
+            >
+              <span className="x-info-label" style={{cursor:'help',borderBottom:'1px dashed var(--color-ink-3)'}}>修为</span>
               <span className="x-info-value">{character.qi_current}/{character.qi_max}</span>
             </div>
           </div>
@@ -460,20 +571,17 @@ export default function MainPage() {
           <div style={{display:'flex',gap:16}}>
             {[['essence','精',character.essence ?? 40],['qi','气',character.qi ?? 40],['spirit','神',character.spirit ?? 30]].map(function([key, label, val]) {
               return (
-                <div key={key} className="x-info-block x-stat-block" style={{flex:1,position:'relative'}}
-                  onMouseEnter={function() { setStatTip(key); }}
+                <div key={key} className="x-info-block x-stat-block" style={{flex:1}}
+                  onMouseEnter={function(e) { setStatTip({ key, rect: e.currentTarget.getBoundingClientRect() }); }}
                   onMouseLeave={function() { setStatTip(null); }}
                 >
                   <span className="x-info-label" style={{cursor:'help',borderBottom:'1px dashed var(--color-ink-3)'}}>{label}</span>
-                  <span className="x-info-value">{val}</span>
-                  {statTip === key && (
-                    <div className="x-stat-tip">
-                      <div className="x-stat-tip-title">{STAT_TIPS[key].title}</div>
-                      {STAT_TIPS[key].lines.map(function(line, i) {
-                        return <div key={i} className="x-stat-tip-line">{line}</div>;
-                      })}
-                    </div>
-                  )}
+                  <span className="x-info-value">
+                    {val}
+                    {buffFor(key) > 0 && (
+                      <span style={{fontSize:10,color:'var(--color-celadon)',marginLeft:4}} title="丹药临时加成">+{buffFor(key)}</span>
+                    )}
+                  </span>
                 </div>
               );
             })}
@@ -481,12 +589,22 @@ export default function MainPage() {
 
           <div className="x-info-separator" />
 
-          {Object.entries(paths).map(([k, v]) => v && (
-            <div className="x-info-block" key={k}>
-              <span className="x-info-label">{k === 'xiandao' ? '仙道' : k === 'physical' ? '肉身' : k === 'strange' ? '诡道' : k === 'artisan' ? '匠道' : '散修'}</span>
-              <span className="x-info-value">{v}</span>
-            </div>
-          ))}
+          {Object.entries(paths).map(([k, v]) => {
+            if (!v) return null;
+            const def = PATH_TIPS[k];
+            const stage = parsePathStage(k, v);
+            return (
+              <div className="x-info-block" key={k}
+                onMouseEnter={(e) => def && setPathTip({ key: k, rect: e.currentTarget.getBoundingClientRect() })}
+                onMouseLeave={() => setPathTip(null)}
+              >
+                <span className="x-info-label" style={def ? {cursor:'help',borderBottom:'1px dashed var(--color-ink-3)'} : undefined}>
+                  {def ? def.label : '散修'}
+                </span>
+                <span className="x-info-value">{v}</span>
+              </div>
+            );
+          })}
 
           <div className="x-info-separator" />
 
@@ -523,7 +641,7 @@ export default function MainPage() {
               {inventoryItems.map(function(item) {
                 return (
                   <div key={item.id} className="x-row x-item-row" style={{padding:'4px 0', position:'relative'}}
-                    onMouseEnter={function(e) { fetchItemKnowledge(item.id, function(k) { setHoveredItem(k); }); }}
+                    onMouseEnter={function(e) { var r = e.currentTarget.getBoundingClientRect(); fetchItemKnowledge(item.id, function(k) { setHoveredItem(Object.assign({}, k, { rect: r })); }); }}
                     onMouseLeave={function() { setHoveredItem(null); }}
                   >
                     <span className="x-row-main x-item-name" style={{fontSize:'12px'}}>
@@ -532,7 +650,7 @@ export default function MainPage() {
                     </span>
                     {item.item_type === 'pill' || item.item_type === 'material' || item.item_type === 'talisman' ? (
                       <button className="btn-outline btn-sm x-use-btn" style={{fontSize:'10px',padding:'2px 8px',position:'relative'}}
-                        onMouseEnter={function(e) { fetchItemKnowledge(item.id, function(k) { setHoveredItem(k); }); }}
+                        onMouseEnter={function(e) { var r = e.currentTarget.getBoundingClientRect(); fetchItemKnowledge(item.id, function(k) { setHoveredItem(Object.assign({}, k, { rect: r })); }); }}
                         onMouseLeave={function() { setHoveredItem(null); }}
                         onClick={async function() {
                           try {

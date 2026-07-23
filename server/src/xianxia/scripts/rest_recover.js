@@ -1,6 +1,6 @@
 // 剧本：休整疗伤 — 确定性回血（休整每天+5；服药消耗一份丹药/药草追加药效）
 const { db } = require('../../db');
-const { parseDurationDays, parseJson, rand } = require('./utils');
+const { parseDurationDays, parseJson, rand, RECOVERABLE_INJURY_PATTERN } = require('./utils');
 
 module.exports = {
   id: 'rest_recover',
@@ -16,8 +16,8 @@ module.exports = {
     const baseHeal = Math.round(days * 5);
     const wantsMedicine = /药|丹|服|吃/.test(actionText || '');
 
-    // 静养≥3天：突破/走火留下的旧伤尽愈
-    const injuryCleared = days >= 3 && /受创|翻涌|走火入魔|损耗|重伤/.test(character.body_status || '');
+    // 静养≥3天：突破/走火留下的旧伤尽愈（关键词表见 utils.RECOVERABLE_INJURY_PATTERN）
+    const injuryCleared = days >= 3 && RECOVERABLE_INJURY_PATTERN.test(character.body_status || '');
     const healSets = injuryCleared ? { body_status: '恢复康健' } : undefined;
     const healText = injuryCleared ? ' 连日的静养将旧伤彻底抚平，气血重归通畅——旧伤尽愈。' : '';
 

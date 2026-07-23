@@ -1,5 +1,6 @@
 // 剧本：旅行 — 精气神修正 + 轻身符骨特殊装备
-const { regionOf, rand, isValidLocation, parseJson } = require('./utils');
+const { regionOf, rand, isValidLocation, parseJson, optionsForLocation } = require('./utils');
+const techniques = require('../techniques');
 
 const REGIONS = ['中州', '北荒', '南疆', '东海', '西漠'];
 const TRAILING_WORDS = /(休整|休息|歇脚|一趟|看看|走走|逛逛|一圈|玩玩|一下)$/;
@@ -44,6 +45,10 @@ module.exports = {
     // 精高缩短旅程
     days = Math.max(1, Math.round(days * (1 - essence / 400) * (1 - qiVal / 400)));
 
+    // 身法提速：已学身法中 speed 最高者按倍率缩短旅程
+    const movement = techniques.movementSpeed(character);
+    if (movement.speed > 1) days = Math.max(1, Math.round(days / movement.speed));
+
     // 轻身符骨特殊装备：时间减半
     const specialEquip = parseJson(character.special_equipment, []);
     const hasLightBody = specialEquip.some(e => e === 'light_body');
@@ -85,13 +90,32 @@ module.exports = {
     const dest = destination || `${from}-邻地`;
     const sets = { current_location: crossRegion ? `${destRegion}-${destination}` : dest };
 
+    // 赶路砺身法：所有已学身法按旅程天数积累深度经验，主修身法 ×1.5
+    const moveMain = techniques.getMainOfType(character, 'movement');
+    const mv = techniques.gainDepthExp(character, Math.max(2, Math.round(days)), {
+      type: 'movement', boostName: moveMain && moveMain.name, boostMult: 1.5, otherMult: 1,
+    });
+    let moveUpText = '';
+    const extraRewards = [];
+    if (mv.gains.length > 0) {
+      sets.learned_techniques = JSON.stringify(mv.list);
+      const ups = mv.gains.filter(g => g.levelUps.length > 0);
+      for (const g of ups) {
+        const label = techniques.DEPTH_LABELS[g.levelUps[g.levelUps.length - 1]];
+        extraRewards.push({ text: `《${g.name}》领悟·${label}`, tone: 'gain' });
+      }
+      if (ups.length > 0) moveUpText = ` 长途跋涉间，你的${ups.map(g => `《${g.name}》`).join('、')}愈发纯熟。`;
+    }
+
+    const movementText = movement.speed > 1 ? `你施展《${movement.name}》赶路，身法如风。` : '';
     return {
       deltas,
       sets,
+      extraRewards: extraRewards.length > 0 ? extraRewards : undefined,
       elapsedDays: days,
-      resultText: `跋涉${days}天，你抵达了${dest}。${encounterText}${clueText}`,
-      renderParams: { destination: dest, days, encounterText, clueText },
-      options: ['探索此地', '寻找客栈落脚', '向当地人打听消息'],
+      resultText: `${movementText}跋涉${days}天，你抵达了${dest}。${encounterText}${clueText}${moveUpText}`,
+      renderParams: { destination: dest, days, encounterText, clueText, movement: movement.name },
+      options: optionsForLocation({ current_location: dest }), // 到达后选项贴合新地点
     };
   },
 };

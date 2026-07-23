@@ -327,11 +327,23 @@ function init() {
   safeAddColumn('xianxia_characters', 'strange_corruption', 'REAL DEFAULT 0');
   safeAddColumn('xianxia_characters', 'special_equipment', "TEXT DEFAULT '[]'");
   safeAddColumn('xianxia_characters', 'learned_techniques', "TEXT DEFAULT '[]'");
+  // 功法系统上线：为存量角色补发基准心法《吐纳基础》（出生自带，作为主修）
+  try {
+    db.prepare(
+      `UPDATE xianxia_characters SET learned_techniques = ? WHERE learned_techniques IS NULL OR learned_techniques = '[]'`
+    ).run(JSON.stringify([{ name: '吐纳基础', depth: 0, main: true }]));
+  } catch (e) { console.error('存量角色补发吐纳基础失败:', e.message); }
   // 兼容旧库：xianxia_items 增加装备属性、门槛、炼制信息、直接服用效果列
   // 兼容旧库：xianxia_characters 增加已发现地点列表
   safeAddColumn('xianxia_characters', 'discovered_locations', "TEXT DEFAULT '[]'");
   // 兼容旧库：诡道力量增益标记（strange_use_power 写入，challenge_duel 消费）
   safeAddColumn('xianxia_characters', 'power_buff', 'TEXT');
+  // 兼容旧库：临时 buff 列表（duration 类丹药写入，各判定消费）
+  safeAddColumn('xianxia_characters', 'active_buffs', "TEXT DEFAULT '[]'");
+  // 兼容旧库：炼丹进行中的目标丹方（alchemy_craft 写入，crafting 结算消费）
+  safeAddColumn('xianxia_characters', 'pending_craft', 'TEXT');
+  // 永久三元丹服用计数：{ "洗髓丹": 2 }（每种限 3 次，useItem 消费）
+  safeAddColumn('xianxia_characters', 'pill_usage', "TEXT DEFAULT '{}'");
   safeAddColumn('xianxia_items', 'attack', 'REAL');
   safeAddColumn('xianxia_items', 'defense', 'REAL');
   safeAddColumn('xianxia_items', 'slot', 'TEXT');

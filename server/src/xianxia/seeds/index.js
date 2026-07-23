@@ -13,53 +13,81 @@ function loadSeedFile(filename) {
 }
 
 function seedTechniques() {
-  const existing = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id IS NULL AND item_type = 'technique'").get();
-  if (existing.c > 0) return;
-
   const techniques = loadSeedFile('techniques.json');
+
   const insert = db.prepare(
     `INSERT INTO xianxia_items (character_id, name, item_type, grade, description, effect, craft_skill, craft_materials, req_essence, req_qi, req_spirit, metadata)
      VALUES (NULL, ?, 'technique', ?, ?, ?, NULL, NULL, ?, ?, ?, ?)`
   );
+  // 已存在的同名模板按种子文件刷新（保证 req/effect 等字段修正能下发到旧库）
+  const update = db.prepare(
+    `UPDATE xianxia_items SET grade = ?, description = ?, effect = ?, req_essence = ?, req_qi = ?, req_spirit = ?, metadata = ?
+     WHERE character_id IS NULL AND item_type = 'technique' AND name = ?`
+  );
 
+  let inserted = 0, updated = 0;
   for (const t of techniques) {
     const req = t.req || {};
-    insert.run(
-      t.name,
+    // 完整 req 入 metadata（cultivation/roots/evil/faction/sword/corruption 等），三元门槛同步到专用列
+    const metadata = JSON.stringify({ type: t.type, faction: t.faction || null, req });
+    const params = [
       t.grade,
       t.acquire || '',
       t.effect ? JSON.stringify(t.effect) : null,
       req.essence || null,
       req.qi || null,
       req.spirit || null,
-      JSON.stringify({ type: t.type, faction: t.faction || null })
-    );
+      metadata,
+    ];
+    const exists = db.prepare(
+      "SELECT id FROM xianxia_items WHERE character_id IS NULL AND item_type = 'technique' AND name = ?"
+    ).get(t.name);
+    if (exists) {
+      update.run(...params, t.name);
+      updated++;
+    } else {
+      insert.run(t.name, ...params);
+      inserted++;
+    }
   }
-  console.log(`[seeds] ✓ 播种 ${techniques.length} 部功法`);
+  // 功法模板缓存失效（techniques 模块按 name 缓存了模板）
+  try { require('../techniques').invalidateTemplateCache(); } catch {}
+  console.log(`[seeds] ✓ 功法模板同步：新增 ${inserted} 部，刷新 ${updated} 部`);
 }
 
 function seedPills() {
-  const existing = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id IS NULL AND item_type = 'pill'").get();
-  if (existing.c > 0) return;
-
   const pills = loadSeedFile('pills.json');
+  // 按 (name, grade) upsert：新丹方补种、旧丹方刷新（同名不同品级视为不同丹药）
   const insert = db.prepare(
     `INSERT INTO xianxia_items (character_id, name, item_type, grade, description, effect, craft_skill, craft_materials, metadata)
      VALUES (NULL, ?, 'pill', ?, ?, ?, ?, ?, ?)`
   );
+  const update = db.prepare(
+    `UPDATE xianxia_items SET description = ?, effect = ?, craft_skill = ?, craft_materials = ?, metadata = ?
+     WHERE character_id IS NULL AND item_type = 'pill' AND name = ? AND grade = ?`
+  );
 
+  let inserted = 0, updated = 0;
   for (const p of pills) {
-    insert.run(
-      p.name,
-      p.grade,
+    const params = [
       p.note || '',
       p.effect ? JSON.stringify(p.effect) : null,
       p.skill || null,
       p.materials ? JSON.stringify(p.materials) : null,
-      JSON.stringify({ side_effect: p.side_effect || null, limit: p.limit || null, buy_price: p.buy_price || null })
-    );
+      JSON.stringify({ side_effect: p.side_effect || null, limit: p.limit || null, buy_price: p.buy_price || null }),
+    ];
+    const exists = db.prepare(
+      "SELECT id FROM xianxia_items WHERE character_id IS NULL AND item_type = 'pill' AND name = ? AND grade = ?"
+    ).get(p.name, p.grade);
+    if (exists) {
+      update.run(...params, p.name, p.grade);
+      updated++;
+    } else {
+      insert.run(p.name, p.grade, ...params);
+      inserted++;
+    }
   }
-  console.log(`[seeds] ✓ 播种 ${pills.length} 种丹药`);
+  console.log(`[seeds] ✓ 丹药模板同步：新增 ${inserted} 种，刷新 ${updated} 种`);
 }
 
 function seedTalismans() {

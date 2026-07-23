@@ -7,6 +7,8 @@ const breakthrough = require('./breakthrough');
 const npcEngine = require('./npc');
 const worldEvents = require('./events');
 const npcBehavior = require('./npc_behavior');
+const { optionsForLocation, withBreakthroughOption, buffsFromPillEffect, parseJson } = require('./scripts/utils');
+const techniques = require('./techniques');
 
 // ==================== 简单 per-user 频率限制（内存计数） ====================
 
@@ -67,8 +69,8 @@ const CHARACTER_PUBLIC_COLS = `id, name, gender, status, spirit_roots, special_b
   comprehension, spirit_stones, fame, infamy, charm, pressure,
   alchemy_skill, crafting_skill, formation_skill, talisman_skill,
   body_status, current_location, game_age,
-  essence, qi, spirit,
-  strange_corruption, discovered_locations,
+  essence, qi, spirit, active_buffs,
+  strange_corruption, discovered_locations, special_equipment, learned_techniques,
   timer_type, timer_end_at, timer_narrative, created_at, updated_at`;
 
 // ==================== 角色管理 ====================
@@ -105,9 +107,10 @@ function createCharacter(req, res) {
   const birth = pickRandomBirth();
 
   const result = db.prepare(
-    `INSERT INTO xianxia_characters (user_id, name, gender, spirit_roots, special_body, birth_region, birth_background)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(req.userId, safeName, safeGender, JSON.stringify(spiritRoots), specialBody, birth.region, birth.background);
+    `INSERT INTO xianxia_characters (user_id, name, gender, spirit_roots, special_body, birth_region, birth_background, learned_techniques)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(req.userId, safeName, safeGender, JSON.stringify(spiritRoots), specialBody, birth.region, birth.background,
+    JSON.stringify([{ name: '吐纳基础', depth: 0, main: true }])); // 出生自带基准心法
 
   const characterId = result.lastInsertRowid;
 
@@ -157,9 +160,15 @@ function getCharacter(req, res) {
     ...character,
     spirit_roots: JSON.parse(character.spirit_roots || '{}'),
     cultivation_paths: JSON.parse(character.cultivation_paths || '{}'),
+    discovered_locations: JSON.parse(character.discovered_locations || '[]'),
+    special_equipment: JSON.parse(character.special_equipment || '[]'),
+    learned_techniques: techniques.enrichForClient(character),
     special_body: character.special_body || null,
     body_status: character.body_status || null,
+    active_buffs: JSON.parse(character.active_buffs || '[]'),
     timer_remaining: getTimerRemaining(character),
+    // 地点情境化选项：前端 suggestions 的兜底来源（行动返回的 options 优先）
+    location_options: withBreakthroughOption(character, optionsForLocation(character)),
     items,
     relationships: relationships.map(r => ({
       ...r,
@@ -666,16 +675,33 @@ async function useItem(req, res) {
   const type = item.item_type;
   const effect = JSON.parse(item.effect || '{}');
   const rawEffect = JSON.parse(item.raw_effect || '{}');
+
+  // 永久三元丹：含精/气/神正词条且无 duration 的丹药，每种限服三次（计数存 pill_usage）
+  const isStatPill = type === 'pill' && !effect.duration
+    && ['essence', 'qi', 'spirit'].some(k => typeof effect[k] === 'number' && effect[k] > 0);
+  if (isStatPill) {
+    const usage = parseJson(character.pill_usage, {});
+    if ((usage[item.name] || 0) >= 3) {
+      return res.status(400).json({ error: `你服用${item.name}已逾三枚，此丹药性于你再无裨益，还是留给有缘人吧。` });
+    }
+  }
   const deltas = {};
+  let newBuffs = null; // duration 类丹药 → 写入 active_buffs 而非即时改数值
 
   if (type === 'pill' || (type === 'material' && Object.keys(rawEffect).length > 0)) {
     const e = type === 'pill' ? effect : rawEffect;
-    for (const [key, val] of Object.entries(e)) {
-      if (typeof val === 'number') {
-        const colMap = { health: 'health', qi_current: 'qi_current', qi_max: 'qi_max', essence: 'essence', qi: 'qi', spirit: 'spirit', lifespan: 'lifespan_remaining', health_regen: 'health' };
-        const col = colMap[key] || key;
-        if (['health', 'qi_current', 'qi_max', 'essence', 'spirit', 'lifespan_remaining', 'dao_heart', 'comprehension', 'divine_sense', 'fame', 'infamy', 'alchemy_skill', 'crafting_skill', 'formation_skill', 'talisman_skill', 'spirit_stones', 'qi'].includes(col)) {
-          deltas[col] = (deltas[col] || 0) + val;
+    const buffsToAdd = buffsFromPillEffect(e);
+    if (buffsToAdd) {
+      const existing = parseJson(character.active_buffs, []);
+      newBuffs = existing.concat(buffsToAdd);
+    } else {
+      for (const [key, val] of Object.entries(e)) {
+        if (typeof val === 'number') {
+          const colMap = { health: 'health', qi_current: 'qi_current', qi_max: 'qi_max', essence: 'essence', qi: 'qi', spirit: 'spirit', lifespan: 'lifespan_remaining', health_regen: 'health' };
+          const col = colMap[key] || key;
+          if (['health', 'qi_current', 'qi_max', 'essence', 'spirit', 'lifespan_remaining', 'dao_heart', 'comprehension', 'divine_sense', 'fame', 'infamy', 'alchemy_skill', 'crafting_skill', 'formation_skill', 'talisman_skill', 'spirit_stones', 'qi'].includes(col)) {
+            deltas[col] = (deltas[col] || 0) + val;
+          }
         }
       }
     }
@@ -710,6 +736,16 @@ async function useItem(req, res) {
       const val = Math.min(cap, Math.max(0, cur + delta));
       db.prepare('UPDATE xianxia_characters SET ' + key + ' = ?, updated_at = datetime(\'now\') WHERE id = ?')
         .run(val, character.id);
+    }
+    if (isStatPill) {
+      const usage = parseJson(character.pill_usage, {});
+      usage[item.name] = (usage[item.name] || 0) + 1;
+      db.prepare("UPDATE xianxia_characters SET pill_usage = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(JSON.stringify(usage), character.id);
+    }
+    if (newBuffs) {
+      db.prepare("UPDATE xianxia_characters SET active_buffs = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(JSON.stringify(newBuffs), character.id);
     }
     if (item.quantity > 1) {
       db.prepare('UPDATE xianxia_items SET quantity = quantity - 1 WHERE id = ?').run(item.id);
@@ -850,11 +886,16 @@ async function travelTo(req, res) {
     // 到达新地点后自动发现同区域地点
     var newlyDiscovered = discoverLocations(characterId);
 
+    // 地点情境化选项（含修为满时的突破置顶）
+    var freshChar = db.prepare('SELECT current_location, qi_current, qi_max FROM xianxia_characters WHERE id = ?').get(characterId);
+    var locationOptions = withBreakthroughOption(freshChar, optionsForLocation(freshChar));
+
     res.json({
       narrative: narrative,
       current_location: targetRegion + '-' + location,
       game_age: newGameAge,
       timer: null,
+      options: locationOptions,
       discovered_locations: JSON.parse(db.prepare('SELECT discovered_locations FROM xianxia_characters WHERE id = ?').get(characterId).discovered_locations || '[]'),
       newly_discovered: newlyDiscovered.length > 0 ? newlyDiscovered : undefined
     });
@@ -985,6 +1026,35 @@ function unequipItem(req, res) {
   res.json({ success: true, message: '已卸下' });
 }
 
+/** POST /api/xianxia/characters/:id/technique-main — 设置某功法为其类型的主修（每类型各一个） */
+function setTechniqueMain(req, res) {
+  const character = db.prepare('SELECT * FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: '请指定功法' });
+
+  const { list, switched, reason, type } = techniques.switchMainTechnique(character, name);
+  if (!switched) {
+    return res.status(400).json({ error: reason === 'not_learned' ? '尚未习得该功法' : '该功法已是主修' });
+  }
+
+  const setsMap = { learned_techniques: JSON.stringify(list) };
+  // 换主修心法：按新倍率重算气海上限，超出部分散逸
+  if (type === 'heart') {
+    const newQiMax = techniques.recalcQiMax(character, list);
+    setsMap.qi_max = newQiMax;
+    if ((character.qi_current || 0) > newQiMax) setsMap.qi_current = newQiMax;
+  }
+  const cols = Object.keys(setsMap).map(k => `${k} = ?`).join(', ');
+  db.prepare(`UPDATE xianxia_characters SET ${cols}, updated_at = datetime('now') WHERE id = ?`)
+    .run(...Object.values(setsMap), character.id);
+
+  const updated = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(character.id);
+  res.json({ success: true, type, learned_techniques: techniques.enrichForClient(updated) });
+}
+
 module.exports = {
   listCharacters, createCharacter, getCharacter, updateCharacter, deleteCharacter,
   getTimeline, getWorldState, listNpcs, getLegacy,
@@ -995,5 +1065,6 @@ module.exports = {
   getItemKnowledge,
   equipItem,
   unequipItem,
+  setTechniqueMain,
   mergeDuplicateItems
 };

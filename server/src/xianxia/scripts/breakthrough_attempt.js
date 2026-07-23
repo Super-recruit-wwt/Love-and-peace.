@@ -1,5 +1,6 @@
 // 剧本：突破尝试 — 小境界即时判定 / 大境界走突破锁（精气神修正 + 诡道支持）
-const { cultivationTier, parseJson, nextXianStage, bigRealmOf, qiMaxForStage } = require('./utils');
+const { cultivationTier, parseJson, nextXianStage, bigRealmOf, qiMaxForStage, effStat, consumeBuffs } = require('./utils');
+const techniques = require('../techniques');
 
 // 各阶突破基准分钟：修为越高所需时间越长（上限15分钟）
 const TIER_MINUTES = [3, 4, 5, 6, 7, 8, 10, 12, 14, 15];
@@ -15,9 +16,9 @@ module.exports = {
   resolve(character) {
     const tier = cultivationTier(character);
     const paths = parseJson(character.cultivation_paths, {});
-    const essence = character.essence || 40;
-    const spiritVal = character.spirit || 30;
-    const qiVal = character.qi || 40;
+    const essence = effStat(character, 'essence', 40);
+    const spiritVal = effStat(character, 'spirit', 30);
+    const qiVal = effStat(character, 'qi', 40);
     const qiCurrent = character.qi_current || 0;
     const qiMax = character.qi_max || 100;
     const corruption = character.strange_corruption || 0;
@@ -66,6 +67,12 @@ module.exports = {
       && bigRealmOf(toStage) === bigRealmOf(fromStage) && toStage !== fromStage;
 
     if (isSmallStage) {
+      // 突破类 buff（如三花聚顶丹）参与本次判定后消耗
+      const afterConsume = parseJson(character.active_buffs, []).some(b => b.unit === 'breakthrough')
+        ? JSON.stringify(consumeBuffs(character, 'breakthrough'))
+        : null;
+      const buffSet = afterConsume ? { active_buffs: afterConsume } : {};
+
       // 成功率：道心为基，精气神修正（比大境界宽松）
       let rate = Math.min(1, (character.dao_heart || 50) / 100);
       if (essence < 50) rate *= 0.9;
@@ -79,16 +86,19 @@ module.exports = {
 
       if (Math.random() < rate) {
         const newPaths = { ...paths, xiandao: toStage };
+        // 小境界突破的境界基底：精/气/神各 +当前大境界层级（炼气+1、筑基+2……越往后越多）
+        const tierGain = cultivationTier({ cultivation_paths: JSON.stringify(newPaths) });
         return {
-          deltas: { health: -5 },
+          deltas: { health: -5, essence: tierGain, qi: tierGain, spirit: tierGain },
           sets: {
             cultivation_paths: JSON.stringify(newPaths),
             qi_current: 0, // 破境后气海重塑，修为清零重新积累
-            qi_max: qiMaxForStage(toStage), // 修为上限随境界成长
+            qi_max: Math.round(qiMaxForStage(toStage) * techniques.qiMaxMult(character)), // 修为上限随境界成长 × 主修功法倍率
             body_status: surging ? '恢复康健' : (character.body_status || '康健'),
+            ...buffSet,
           },
           elapsedDays: 1,
-          resultText: `你引导灵力向那道薄障发起冲击——壁障应声而碎。气息流转间，你已从${fromStage}踏入${toStage}，气海随之扩张，只觉周身空空荡荡，需重新积累修为。（生命 -5）`,
+          resultText: `你引导灵力向那道薄障发起冲击——壁障应声而碎。气息流转间，你已从${fromStage}踏入${toStage}，气海随之扩张，只觉周身空空荡荡，需重新积累修为。境界精进，道基愈发坚实。（生命 -5，精气神各 +${tierGain}）`,
           renderParams: { outcome: 'small_success', fromStage, toStage, newQiMax: qiMaxForStage(toStage) },
           options: ['继续修炼', '外出历练一番', '前往坊市'],
         };
@@ -98,6 +108,7 @@ module.exports = {
         sets: {
           qi_current: 0, // 冲击失败修为散尽，需重新积累
           body_status: '气血翻涌：数日之内突破成功率降低，需静养平复',
+          ...buffSet,
         },
         elapsedDays: 1,
         resultText: `你冲击${toStage}的壁障，灵力却在关头一散——辛苦积累的修为溃散一空，体内气血翻涌不止，受了些轻伤。境界仍是${fromStage}。（生命 -10，修为清零）`,

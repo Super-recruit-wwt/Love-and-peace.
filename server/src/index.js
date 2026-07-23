@@ -998,6 +998,7 @@ app.get('/api/xianxia/characters/:id/export', authMiddleware, xianxia.exportMD);
 app.post('/api/xianxia/characters/:id/use-item', authMiddleware, xianxia.useItem);
 app.post('/api/xianxia/characters/:id/equip', authMiddleware, xianxia.equipItem);
 app.post('/api/xianxia/characters/:id/unequip', authMiddleware, xianxia.unequipItem);
+app.post('/api/xianxia/characters/:id/technique-main', authMiddleware, xianxia.setTechniqueMain);
 app.get('/api/xianxia/characters/:id/discover-locations', authMiddleware, xianxia.refreshDiscoveredLocations);
 app.post('/api/xianxia/characters/:id/travel', authMiddleware, xianxia.travelTo);
 app.get('/api/xianxia/items/:id/knowledge', authMiddleware, xianxia.getItemKnowledge);

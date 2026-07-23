@@ -80,6 +80,44 @@ const FIXED_NPCS = [
     personality_type: '隐世高人', strength_level: '炼虚初期',
     traits: { warmth: 0.6, assertiveness: 0.7, conscientiousness: 0.6, formality: 0.2, extraversion: 0.45, emotionalStability: 0.9, openness: 0.6, humor: 0.7, agreeableness: 0.6 }
   },
+  // 北荒
+  {
+    name: '铁无情', identity: '铁骨门门主', faction: '铁骨门', location: '北荒-铁骨门',
+    personality_type: '冷酷派', strength_level: '炼虚中期',
+    traits: { warmth: 0.15, assertiveness: 0.9, conscientiousness: 0.9, formality: 0.7, extraversion: 0.2, emotionalStability: 0.95, openness: 0.2, humor: 0.05, agreeableness: 0.25 }
+  },
+  {
+    name: '霜寒仙子', identity: '寒冰宗宗主', faction: '寒冰宗', location: '北荒-寒冰宗',
+    personality_type: '冷酷派', strength_level: '炼虚后期',
+    traits: { warmth: 0.1, assertiveness: 0.7, conscientiousness: 0.9, formality: 0.85, extraversion: 0.05, emotionalStability: 0.95, openness: 0.3, humor: 0.05, agreeableness: 0.2 }
+  },
+  {
+    name: '血冥老祖', identity: '血河宗宗主', faction: '血河宗', location: '北荒-血河宗',
+    personality_type: '权谋者', strength_level: '炼虚中期',
+    traits: { warmth: 0.05, assertiveness: 0.95, conscientiousness: 0.6, formality: 0.5, extraversion: 0.3, emotionalStability: 0.8, openness: 0.4, humor: 0.2, agreeableness: 0.05 }
+  },
+  // 南疆
+  {
+    name: '青木老人', identity: '青木宗宗主', faction: '青木宗', location: '南疆-青木宗',
+    personality_type: '隐世高人', strength_level: '炼虚初期',
+    traits: { warmth: 0.7, assertiveness: 0.4, conscientiousness: 0.8, formality: 0.4, extraversion: 0.3, emotionalStability: 0.9, openness: 0.7, humor: 0.6, agreeableness: 0.7 }
+  },
+  {
+    name: '万毒老母', identity: '万毒教教主', faction: '万毒教', location: '南疆-万毒教',
+    personality_type: '冷酷派', strength_level: '炼虚后期',
+    traits: { warmth: 0.05, assertiveness: 0.9, conscientiousness: 0.7, formality: 0.6, extraversion: 0.25, emotionalStability: 0.85, openness: 0.5, humor: 0.3, agreeableness: 0.05 }
+  },
+  {
+    name: '蛊婆', identity: '蛊神宗宗主', faction: '蛊神宗', location: '南疆-蛊神宗',
+    personality_type: '痴人', strength_level: '炼虚中期',
+    traits: { warmth: 0.2, assertiveness: 0.6, conscientiousness: 0.5, formality: 0.3, extraversion: 0.2, emotionalStability: 0.7, openness: 0.8, humor: 0.4, agreeableness: 0.15 }
+  },
+  // 西漠（邪）
+  {
+    name: '白骨夫人', identity: '白骨观观主', faction: '白骨观', location: '西漠-白骨观',
+    personality_type: '权谋者', strength_level: '炼虚中期',
+    traits: { warmth: 0.1, assertiveness: 0.85, conscientiousness: 0.75, formality: 0.7, extraversion: 0.35, emotionalStability: 0.9, openness: 0.5, humor: 0.4, agreeableness: 0.1 }
+  },
 ];
 
 function initWorldState() {
@@ -94,16 +132,19 @@ function initWorldState() {
 }
 
 function seedFixedNpcs() {
-  const existing = db.prepare('SELECT COUNT(*) as cnt FROM xianxia_npcs WHERE is_fixed = 1').get();
-  if (existing.cnt > 0) return;
-
+  // 按名补种：新增固定 NPC 能进入旧存档，已存在的不动（保留运行期状态）
   const insert = db.prepare(
     `INSERT INTO xianxia_npcs (name, identity, faction, location, personality_type, strength_level, personality_traits, is_fixed)
      VALUES (?, ?, ?, ?, ?, ?, ?, 1)`
   );
+  const existsStmt = db.prepare('SELECT id FROM xianxia_npcs WHERE name = ? AND is_fixed = 1');
+  let added = 0;
   for (const npc of FIXED_NPCS) {
+    if (existsStmt.get(npc.name)) continue;
     insert.run(npc.name, npc.identity, npc.faction, npc.location, npc.personality_type, npc.strength_level, JSON.stringify(npc.traits));
+    added++;
   }
+  if (added > 0) console.log(`[world] ✓ 补种 ${added} 位固定 NPC`);
 }
 
 function seedAll() {

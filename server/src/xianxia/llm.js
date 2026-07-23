@@ -8,7 +8,8 @@ const OpenAI = require('openai');
 const { db } = require('../db');
 const scripts = require('./scripts');
 const npcEngine = require('./npc');
-const { isValidLocation } = require('./scripts/utils');
+const { isValidLocation, withBreakthroughOption, consumeBuffs, parseJson } = require('./scripts/utils');
+const techniques = require('./techniques');
 
 let client = null;
 
@@ -202,6 +203,7 @@ async function processAction(characterId, userInput) {
 const DELTA_BOUNDS = {
   health: [0, 100], dao_heart: [0, 100], comprehension: [0, 100],
   alchemy_skill: [0, 100], crafting_skill: [0, 100], formation_skill: [0, 100], talisman_skill: [0, 100],
+  essence: [0, 999], qi: [0, 999], spirit: [0, 999],
   spirit_stones: [0, Infinity], fame: [0, Infinity], infamy: [0, Infinity],
   qi_current: [0, Infinity], qi_max: [0, Infinity],
 };
@@ -301,6 +303,13 @@ async function processScripted(openai, character, userInput, { script, params })
       console.warn(`[scripted] 拒绝写入非法位置 "${setsMap.current_location}"（剧本 ${script.id}）`);
       delete setsMap.current_location;
     }
+    // 按行动次数消耗的 buff（暴气丹/神念丹 3_actions）：每次行动 -1，耗尽移除
+    const curBuffs = setsMap.active_buffs !== undefined
+      ? parseJson(setsMap.active_buffs, [])
+      : parseJson(character.active_buffs, []);
+    if (curBuffs.some(b => b.unit === 'actions')) {
+      setsMap.active_buffs = JSON.stringify(consumeBuffs({ active_buffs: JSON.stringify(curBuffs) }, 'actions'));
+    }
     if (Object.keys(setsMap).length > 0) {
       const cols = Object.keys(setsMap).map(k => `${k} = ?`).join(', ');
       db.prepare(`UPDATE xianxia_characters SET ${cols} WHERE id = ?`)
@@ -387,6 +396,11 @@ async function processScripted(openai, character, userInput, { script, params })
     }
   });
   applyOutcome();
+
+  // options 统一出口：修为满时首位保证"冲击瓶颈"（用结算后的最新修为状态判定）
+  const afterChar = db.prepare('SELECT qi_current, qi_max FROM xianxia_characters WHERE id = ?').get(characterId);
+  result.options = withBreakthroughOption(afterChar, result.options);
+  if (result.options.length === 0) result.options = null;
 
   // 第三层：LLM 叙事包装（失败兜底剧本白描文本，行动照常完成）
   let narrative = null;
@@ -518,7 +532,9 @@ async function processFreeNarrative(openai, character, userInput) {
   // 耗时（天）：无标记或解析失败时保守默认 1 天
   const elapsedDays = timeSpent ? timeSpent.days : 1;
 
-  const result = { narrative, timerTriggered, options, time_spent_days: elapsedDays };
+  // options 统一出口：修为满时首位保证"冲击瓶颈"（自由通道不改数值，用当前修为判定）
+  const finalOptions = withBreakthroughOption(character, options);
+  const result = { narrative, timerTriggered, options: finalOptions.length > 0 ? finalOptions : null, time_spent_days: elapsedDays };
 
   // 时间推进 + 死亡判定 + 落库（事务保证原子性；玩家行动与 AI 叙事一并入库，供决策回顾）
   const passTime = db.transaction(() => {
@@ -533,7 +549,7 @@ async function processFreeNarrative(openai, character, userInput) {
 
     db.prepare(
       'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative, options) VALUES (?, ?, ?, ?, ?)'
-    ).run(characterId, gameTime, 'narrative', narrative, options ? JSON.stringify(options) : null);
+    ).run(characterId, gameTime, 'narrative', narrative, result.options ? JSON.stringify(result.options) : null);
 
     if (newLifespan <= 0) {
       // 寿元耗尽：死亡流程
@@ -565,6 +581,22 @@ async function processFreeNarrative(openai, character, userInput) {
     result.gameTime = gameTime;
   });
   passTime();
+
+  // 自由匠艺（炼符/炼器/阵法等无剧本通道）：相关秘术功法触类旁通，主修秘术 ×1.5
+  if (!result.died && /炼符|制符|绘符|画符|炼器|打造|布阵|阵法/.test(userInput)) {
+    try {
+      const secMain = techniques.getMainOfType(character, 'secret');
+      const r = techniques.gainDepthExp(character, Math.max(3, Math.round(elapsedDays)), {
+        type: 'secret', boostName: secMain && secMain.name, boostMult: 1.5, otherMult: 1,
+      });
+      if (r.gains.length > 0) {
+        db.prepare("UPDATE xianxia_characters SET learned_techniques = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(JSON.stringify(r.list), characterId);
+      }
+    } catch (e) {
+      console.error('匠艺功法经验失败:', e.message);
+    }
+  }
 
   // 定期触发记忆压缩（异步，不阻塞响应）
   const eventCount = db.prepare(
