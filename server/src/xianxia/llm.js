@@ -113,7 +113,7 @@ function buildCharacterState(character) {
   lines.push(`角色名：${character.name}`);
   lines.push(`年龄：${character.game_age}岁 | 寿元剩余：${character.lifespan_remaining}年`);
   lines.push(`所在地：${character.current_location}`);
-  lines.push(`三元：精(体魄)=${character.essence || 40} / 气(灵力流转)=${character.qi || 40} / 神(神识)=${character.spirit || 30}`);
+  lines.push(`三元：精(体魄)=${character.essence || 40} / 气(真元)=${character.qi || 40} / 神(神魂)=${character.spirit || 30}`);
   lines.push(`出生：${character.birth_region}，${character.birth_background}`);
 
   // 灵根
@@ -133,7 +133,7 @@ function buildCharacterState(character) {
   lines.push(`生命：${character.health} | 灵力：${character.qi_current}/${character.qi_max}`);
 
   // 道心与悟性
-  lines.push(`道心：${character.dao_heart} | 悟性：${character.comprehension} | 神识：${character.divine_sense}`);
+  lines.push(`道心：${character.dao_heart} | 悟性：${character.comprehension}`);
 
   // 财富与声望
   lines.push(`灵石：${character.spirit_stones} | 名望：${character.fame} | 恶名：${character.infamy}`);
@@ -283,6 +283,7 @@ async function processScripted(openai, character, userInput, { script, params })
   };
 
   const characterId = character.id;
+  let persistedLearned = null; // 事务内落库的 learned_techniques 快照（用于三元结算）
 
   // 数值应用 + 时间推进 + 死亡判定 + 玩家行动入库 + 计时器设置（同事务）
   const applyOutcome = db.transaction(() => {
@@ -329,6 +330,7 @@ async function processScripted(openai, character, userInput, { script, params })
       const cols = Object.keys(setsMap).map(k => `${k} = ?`).join(', ');
       db.prepare(`UPDATE xianxia_characters SET ${cols} WHERE id = ?`)
         .run(...Object.values(setsMap), characterId);
+      if (setsMap.learned_techniques !== undefined) persistedLearned = setsMap.learned_techniques;
     }
 
     // 物品增减
@@ -411,6 +413,33 @@ async function processScripted(openai, character, userInput, { script, params })
     }
   });
   applyOutcome();
+
+  // 功法熟练度三元结算：比较行动前后的 learned_techniques，取单功法滋养最大值之差额入账精/气/神
+  try {
+    const grants = techniques.applyDepthStatGrants(
+      characterId, character.learned_techniques, persistedLearned || character.learned_techniques
+    );
+    if (grants) {
+      const parts = ['essence', 'qi', 'spirit'].filter(s => grants[s]).map(s => `${DELTA_LABELS[s]} +${grants[s]}`);
+      rewards.push({ text: `功法滋养 ${parts.join(' ')}`, tone: 'gain' });
+    }
+  } catch (e) {
+    console.error('[scripted] 功法三元结算失败（不影响主流程）:', e.message);
+  }
+
+  // 悟性结算：功法深造顿悟（深度升档）+ 神魂里程碑（行动带来的神增长达档）
+  try {
+    const insight = require('./insight');
+    const ins = insight.settleComprehension(characterId, {
+      beforeLearned: character.learned_techniques,
+      afterLearned: persistedLearned || character.learned_techniques,
+    });
+    if (ins) {
+      rewards.push({ text: `悟性 +${ins.total}`, tone: 'gain' });
+    }
+  } catch (e) {
+    console.error('[scripted] 悟性结算失败（不影响主流程）:', e.message);
+  }
 
   // options 统一出口：修为满时首位保证"冲击瓶颈"（用结算后的最新修为状态判定）
   const afterChar = db.prepare('SELECT qi_current, qi_max FROM xianxia_characters WHERE id = ?').get(characterId);
@@ -925,4 +954,6 @@ module.exports = {
   formatGameAge,
   generateTravelNarrative,
   mergeScriptOptions,
+  getClient,
+  MODEL,
 };

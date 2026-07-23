@@ -89,7 +89,7 @@ module.exports = {
         // 小境界突破的境界基底：精/气/神各 +当前大境界层级（炼气+1、筑基+2……越往后越多）
         const tierGain = cultivationTier({ cultivation_paths: JSON.stringify(newPaths) });
         return {
-          deltas: { health: -5, essence: tierGain, qi: tierGain, spirit: tierGain },
+          deltas: { health: -5, essence: tierGain, qi: tierGain, spirit: tierGain, comprehension: 1 }, // 破境顿悟：小境界 悟性 +1
           sets: {
             cultivation_paths: JSON.stringify(newPaths),
             qi_current: 0, // 破境后气海重塑，修为清零重新积累
@@ -98,7 +98,7 @@ module.exports = {
             ...buffSet,
           },
           elapsedDays: 1,
-          resultText: `你引导灵力向那道薄障发起冲击——壁障应声而碎。气息流转间，你已从${fromStage}踏入${toStage}，气海随之扩张，只觉周身空空荡荡，需重新积累修为。境界精进，道基愈发坚实。（生命 -5，精气神各 +${tierGain}）`,
+          resultText: `你引导灵力向那道薄障发起冲击——壁障应声而碎。气息流转间，你已从${fromStage}踏入${toStage}，气海随之扩张，只觉周身空空荡荡，需重新积累修为。境界精进，道基愈发坚实，破境一瞬的顿悟让你心思澄明。（生命 -5，精气神各 +${tierGain}，悟性 +1）`,
           renderParams: { outcome: 'small_success', fromStage, toStage, newQiMax: qiMaxForStage(toStage) },
           options: ['继续修炼', '外出历练一番', '前往坊市'],
         };

@@ -1,6 +1,7 @@
 // 剧本：旅行 — 精气神修正 + 轻身符骨特殊装备
 const { regionOf, rand, isValidLocation, parseJson, optionsForLocation } = require('./utils');
 const techniques = require('../techniques');
+const fortuneEvent = require('./fortune_event');
 
 const REGIONS = ['中州', '北荒', '南疆', '东海', '西漠'];
 const TRAILING_WORDS = /(休整|休息|歇脚|一趟|看看|走走|逛逛|一圈|玩玩|一下)$/;
@@ -54,7 +55,12 @@ module.exports = {
     const hasLightBody = specialEquip.some(e => e === 'light_body');
     if (hasLightBody) days = Math.max(1, Math.ceil(days / 2));
 
-    const encounter = Math.random() < 0.2;
+    // 15% 概率途中撞上机缘事件：触发则替代原有路途小遭遇，行程照常完成、收益叠加
+    const fr = Math.random() < 0.15 ? fortuneEvent.resolve(character) : null;
+    const fortune = fr && fr.renderParams && fr.renderParams.outcome !== 'no_event' ? fr : null;
+    if (fortune) fortune.renderParams.passive = 'travel';
+
+    const encounter = !fortune && Math.random() < 0.2;
     const deltas = {};
     let encounterText = '';
     if (encounter) {
@@ -91,8 +97,12 @@ module.exports = {
     const sets = { current_location: crossRegion ? `${destRegion}-${destination}` : dest };
 
     // 赶路砺身法：所有已学身法按旅程天数积累深度经验，主修身法 ×1.5
+    // 若机缘事件授予了新功法，身法经验在其基础上累加（避免覆盖）
+    const charForMv = fortune && fortune.sets && fortune.sets.learned_techniques
+      ? { ...character, learned_techniques: fortune.sets.learned_techniques }
+      : character;
     const moveMain = techniques.getMainOfType(character, 'movement');
-    const mv = techniques.gainDepthExp(character, Math.max(2, Math.round(days)), {
+    const mv = techniques.gainDepthExp(charForMv, Math.max(2, Math.round(days)), {
       type: 'movement', boostName: moveMain && moveMain.name, boostMult: 1.5, otherMult: 1,
     });
     let moveUpText = '';
@@ -107,15 +117,34 @@ module.exports = {
       if (ups.length > 0) moveUpText = ` 长途跋涉间，你的${ups.map(g => `《${g.name}》`).join('、')}愈发纯熟。`;
     }
 
+    // 机缘事件收益合并进行程结算（行程照常完成，事件收益叠加）
+    let fortuneText = '';
+    let items;
+    if (fortune) {
+      for (const [k, v] of Object.entries(fortune.deltas || {})) {
+        deltas[k] = (deltas[k] || 0) + v;
+      }
+      if (fortune.sets) {
+        if (fortune.sets.fortune_events) sets.fortune_events = fortune.sets.fortune_events;
+        if (fortune.sets.learned_techniques && !sets.learned_techniques) {
+          sets.learned_techniques = fortune.sets.learned_techniques;
+        }
+      }
+      if (fortune.items) items = fortune.items;
+      if (fortune.extraRewards) extraRewards.push(...fortune.extraRewards);
+      fortuneText = ` 途中另有际遇——${fortune.resultText}`;
+    }
+
     const movementText = movement.speed > 1 ? `你施展《${movement.name}》赶路，身法如风。` : '';
     return {
       deltas,
       sets,
+      items,
       extraRewards: extraRewards.length > 0 ? extraRewards : undefined,
       elapsedDays: days,
-      resultText: `${movementText}跋涉${days}天，你抵达了${dest}。${encounterText}${clueText}${moveUpText}`,
-      renderParams: { destination: dest, days, encounterText, clueText, movement: movement.name },
-      options: optionsForLocation({ current_location: dest }), // 到达后选项贴合新地点
+      resultText: `${movementText}跋涉${days}天，你抵达了${dest}。${encounterText}${clueText}${fortuneText}${moveUpText}`,
+      renderParams: { destination: dest, days, encounterText, clueText, movement: movement.name, fortuneEventId: fortune ? fortune.renderParams.eventId : null },
+      options: fortune ? fortune.options : optionsForLocation({ current_location: dest }), // 触发机缘时用事件选项，否则贴合新地点
     };
   },
 };

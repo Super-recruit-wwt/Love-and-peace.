@@ -68,7 +68,7 @@ function loadTemplates() {
       effect: parseJson(row.effect, {}),
       ...(() => {
         const meta = parseJson(row.metadata, {});
-        return { type: meta.type || 'heart', faction: meta.faction || null, req: meta.req || {} };
+        return { type: meta.type || 'heart', faction: meta.faction || null, req: meta.req || {}, stat_bias: meta.stat_bias || null };
       })(),
     });
   }
@@ -289,63 +289,95 @@ function effectiveQiMax(character) {
 }
 
 // ==================== 功法三元成长（精/气/神） ====================
-// 规则：每部功法都能在突破时滋养三元，但终身上限有限——品级越高，每次加成与总上限越高。
-// 总量不叠加：每次突破各系只取加成最高的一部功法生效（单功法最大值，而非诸功法总和）。
-// 模板配了 *_per_break 的系用配置值，未配的系按品级默认值；诡品只吃显式配置（可为负，是代价），不占上限。
+// 规则：每部功法随熟练度（深度经验）滋养三元——品级越高，可滋养总量（cap）越高；
+// 滋养随修炼进度持续累积，修至大成时满额，不再需要突破大境界。
+// 属性独占：每部功法只滋养其偏向的一元（stat_bias：essence/qi/spirit），不偏的不加。
+// 总量不叠加：每一元分别取"偏向该元的功法中"滋养最高的一部生效，而非诸功法总和。
+// 诡品无品级规则、无默认滋养；其显式负值 *_per_break（如精-8）仍挂在突破上作为代价。
 const STAT_GAIN_BY_GRADE = {
-  '凡品': { perBreak: 2, cap: 30 },
-  '灵品': { perBreak: 3, cap: 60 },
-  '宝品': { perBreak: 5, cap: 120 },
-  '玄品': { perBreak: 7, cap: 200 },
-  '圣品': { perBreak: 10, cap: 400 },
+  '凡品': { cap: 30 },
+  '灵品': { cap: 60 },
+  '宝品': { cap: 120 },
+  '玄品': { cap: 200 },
+  '圣品': { cap: 400 },
 };
 const STAT_BREAK_KEYS = [['essence_per_break', 'essence'], ['qi_per_break', 'qi'], ['spirit_per_break', 'spirit']];
+const STAT_BIAS_LABELS = { essence: '精', qi: '气', spirit: '神' };
+
+/** 功法滋养的偏向属性：模板 stat_bias，缺省按 'qi'（气修为主流）；诡品返回 null（不滋养） */
+function biasOfEntry(entry) {
+  const tpl = getTemplate(entry.name);
+  if (!tpl || tpl.grade === '诡品') return null;
+  return tpl.stat_bias || 'qi';
+}
 
 /**
- * 大境界突破时的三元加成（纯函数）——所有已学功法都参与，但正收益不叠加：
- * - 各系正收益取单部功法最大值（品级越高单次越多），每部功法仍各自消耗自己的品级上限
- * - 模板配了 *_per_break 的系用配置值，未配的系按品级默认值；诡品负值代价总是生效（可叠加），不占上限
- * 返回 { gains, list, capped }：
- * - gains：本次实际生效加成 { essence?, qi?, spirit? }，无任何加成时为 null
- * - list：stat_gained 累计已更新的 learned_techniques 数组（调用方负责落库）
- * - capped：本次是否有功法因上限被削顶
+ * 熟练度驱动的三元滋养目标（纯函数）：目标池 = cap × min(1, exp / 大成门槛)。
+ * 修至大成（depth 2 门槛）时滋养尽出；诡品/无模板返回 0。
+ */
+function depthStatTarget(entry, tpl) {
+  const rule = tpl ? STAT_GAIN_BY_GRADE[tpl.grade] : null;
+  if (!rule) return 0;
+  const thresholds = DEPTH_THRESHOLDS[tpl.grade] || DEPTH_THRESHOLDS['凡品'];
+  const fullAt = thresholds[1] || 1;
+  return Math.round(rule.cap * Math.min(1, (Number(entry.exp) || 0) / fullAt));
+}
+
+/**
+ * 结算功法滋养的三元入账（写库）：比较 before/after 两份 learned_techniques 快照，
+ * 属性独占——每部功法只按其偏向（stat_bias）计入对应一元；
+ * 每一元分别取偏向功法中 stat_gained 的最大值，差额各自入账（clamp 999）。
+ * 全部差额 <= 0 时不动库，返回 null；否则返回 { essence?, qi?, spirit? }（仅含正差额）。
+ */
+function applyDepthStatGrants(characterId, beforeJson, afterJson) {
+  const before = parseJson(beforeJson, []);
+  const after = parseJson(afterJson, []);
+  if (!after.length) return null;
+  const maxOf = (list) => {
+    const m = { essence: 0, qi: 0, spirit: 0 };
+    for (const e of list) {
+      const v = Number(e.stat_gained) || 0;
+      if (v <= 0) continue;
+      const b = biasOfEntry(e);
+      if (b) m[b] = Math.max(m[b], v);
+    }
+    return m;
+  };
+  const m0 = maxOf(before);
+  const m1 = maxOf(after);
+  const deltas = {};
+  for (const s of ['essence', 'qi', 'spirit']) {
+    const d = m1[s] - m0[s];
+    if (d > 0) deltas[s] = d;
+  }
+  if (Object.keys(deltas).length === 0) return null;
+  const sets = Object.keys(deltas).map(s => `${s} = MIN(999, ${s} + ?)`).join(', ');
+  db.prepare(`UPDATE xianxia_characters SET ${sets}, updated_at = datetime('now') WHERE id = ?`)
+    .run(...Object.values(deltas), characterId);
+  return deltas;
+}
+
+/**
+ * 大境界突破时的三元调整（纯函数）——现在只保留诡品显式负值代价（如虚海心经 精-8），
+ * 正向滋养已全部改由熟练度驱动（addDepthExp → stat_gained → applyDepthStatGrants）。
+ * 返回 { gains, list, capped }：gains 仅含负值（无代价时为 null）；list 原样返回；capped 恒 false。
  */
 function breakthroughStatGains(character) {
   const list = getLearned(character);
-  const posMax = {}; // 各系正收益：取单部功法最大值
-  const negSum = {}; // 诡品负值代价：总是生效，不占上限
-  let capped = false;
+  const negSum = {};
   for (const entry of list) {
     const tpl = getTemplate(entry.name);
-    const grade = tpl ? tpl.grade : '凡品';
-    const rule = STAT_GAIN_BY_GRADE[grade]; // 诡品 undefined：仅显式配置，无默认、无上限
-    const effect = tpl ? unlockedEffectForEntry(character, entry) : {};
-    let remaining = rule ? Math.max(0, rule.cap - (Number(entry.stat_gained) || 0)) : Infinity;
+    if (!tpl) continue;
+    const effect = unlockedEffectForEntry(character, entry);
     for (const [key, stat] of STAT_BREAK_KEYS) {
-      let v = Number(effect[key]);
-      const isExplicit = Number.isFinite(v) && v !== 0;
-      if (!isExplicit) {
-        if (!rule) continue; // 诡品无默认
-        v = rule.perBreak;
-      }
-      if (v > 0) {
-        const grant = Math.min(v, remaining);
-        if (grant <= 0) { capped = true; continue; }
-        if (grant < v) capped = true;
-        posMax[stat] = Math.max(posMax[stat] || 0, Math.round(grant));
-        entry.stat_gained = (Number(entry.stat_gained) || 0) + Math.round(grant);
-        remaining -= grant;
-      } else if (v < 0) {
-        negSum[stat] = (negSum[stat] || 0) + Math.round(v); // 负值代价：不占上限
+      const v = Number(effect[key]);
+      if (Number.isFinite(v) && v < 0) {
+        negSum[stat] = (negSum[stat] || 0) + Math.round(v);
       }
     }
   }
-  const gains = {};
-  for (const stat of new Set([...Object.keys(posMax), ...Object.keys(negSum)])) {
-    const v = (posMax[stat] || 0) + (negSum[stat] || 0);
-    if (v !== 0) gains[stat] = v;
-  }
-  return { gains: Object.keys(gains).length > 0 ? gains : null, list, capped };
+  const gains = Object.keys(negSum).length > 0 ? negSum : null;
+  return { gains, list, capped: false };
 }
 
 // ==================== 深度经验 ====================
@@ -377,6 +409,9 @@ function addDepthExp(character, name, amount, { capDepth } = {}) {
     const cap = thresholds[Math.min(entry.depth, 3)];
     if (cap != null) entry.exp = Math.min(entry.exp, cap);
   }
+  // 熟练度（深度经验）驱动三元滋养：随修炼进度持续累积，修至大成时满额；只增不减。
+  const target = depthStatTarget(entry, tpl);
+  entry.stat_gained = Math.max(Number(entry.stat_gained) || 0, target);
   return { list, gained: gain, levelUps };
 }
 
@@ -540,6 +575,7 @@ function enrichForClient(character) {
       locked_count: lockedKeys.length,
       stat_gained: e.stat_gained || 0,
       stat_cap: (STAT_GAIN_BY_GRADE[tpl ? tpl.grade : '凡品'] || {}).cap ?? null,
+      stat_bias: tpl && tpl.grade !== '诡品' ? (tpl.stat_bias || 'qi') : null,
     };
   });
 }
@@ -567,6 +603,10 @@ module.exports = {
   qiMaxMult,
   effectiveQiMax,
   breakthroughStatGains,
+  applyDepthStatGrants,
+  depthStatTarget,
+  biasOfEntry,
+  STAT_BIAS_LABELS,
   addDepthExp,
   nextThreshold,
   learnTechnique,

@@ -7,6 +7,9 @@ const techniques = require('./techniques');
 
 const ri = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 
+// 三元中文标签（结算叙事与突破叙事共用）
+const GAIN_LABELS = { essence: '精', qi: '气', spirit: '神' };
+
 // 目标大境界 → 对应突破丹药（背包中自动服下一枚，提升成功率并护体）
 const BREAKTHROUGH_PILLS = {
   '筑基': '筑基丹', '金丹': '结金丹', '元婴': '化婴丹',
@@ -153,6 +156,23 @@ async function completeBreakthrough(characterId) {
     if (learnedListToPersist) {
       db.prepare("UPDATE xianxia_characters SET learned_techniques = ?, updated_at = datetime('now') WHERE id = ?")
         .run(JSON.stringify(learnedListToPersist), characterId);
+      // 功法熟练度三元结算：突破体悟带来的滋养增长，取单功法最大值之差额入账精/气/神
+      const grants = techniques.applyDepthStatGrants(
+        characterId, character.learned_techniques, JSON.stringify(learnedListToPersist));
+      if (grants) {
+        const parts = ['essence', 'qi', 'spirit'].filter(s => grants[s]).map(s => `${GAIN_LABELS[s]} +${grants[s]}`);
+        results.narrative += ` 功法精进滋养道基，${parts.join('，')}。`;
+      }
+      // 悟性结算：突破顿悟（跨大境界 +2）+ 功法深造顿悟 + 神魂里程碑
+      const insight = require('./insight');
+      const ins = insight.settleComprehension(characterId, {
+        beforeLearned: character.learned_techniques,
+        afterLearned: JSON.stringify(learnedListToPersist),
+        bonus: results.crossBigRealm ? 2 : 0,
+      });
+      if (ins) {
+        results.narrative += ` 破境明心，悟性 +${ins.total}。`;
+      }
     }
 
     // 诡道突破至噬主阶段：自动习得《噬主真言》并转为主修（它已经是你了）
@@ -270,8 +290,7 @@ function resolveBreakthroughResult(character, timerType) {
 
   const roll = Math.random();
 
-  // 所修诸功法三元加成（各系正收益取单部功法最大值，每部仍独立消耗品级上限）；sg.list 含 stat_gained 累计，供深度经验链使用
-  const GAIN_LABELS = { essence: '精', qi: '气', spirit: '神' };
+  // 所修诸功法突破调整：正向滋养已改由熟练度驱动（addDepthExp→stat_gained），此处 sg.gains 仅剩诡品显式负值代价
   const sg = techniques.breakthroughStatGains(character);
   const charForDepth = { ...character, learned_techniques: JSON.stringify(sg.list) };
 
@@ -300,7 +319,7 @@ function resolveBreakthroughResult(character, timerType) {
   const toBig = bigRealmOf(toStage);
   const crossBigRealm = toBig !== bigRealmOf(fromStage);
 
-  // 三元合并：功法加成（占品级上限）+ 大境界基底（目标大境界层级 ×3，境界红利不占上限；越往后的境界越多）
+  // 三元合并：诡品功法负值代价 + 大境界基底（目标大境界层级 ×3，境界红利不占上限；越往后的境界越多）
   const toTier = cultivationTier({ cultivation_paths: JSON.stringify({ xiandao: toStage }) });
   const statGains = {};
   for (const stat of ['essence', 'qi', 'spirit']) {
@@ -338,6 +357,7 @@ function resolveBreakthroughResult(character, timerType) {
       : `${pillPrefix}壁障在灵力的持续冲击下悄然碎裂。你缓缓睁眼，气息比闭关前凝实了几分——你已从${fromStage}迈入${toStage}。`;
     return withDepthExp({
       success: true,
+      crossBigRealm,
       narrative: narrative + gainsText,
       newCultivation: advanceCultivation(cultivation, timerType),
       newLifespan: character.lifespan_remaining + 50 + Math.floor(Math.random() * 100),
@@ -350,6 +370,7 @@ function resolveBreakthroughResult(character, timerType) {
     // 部分成功（境界提升但带伤）
     return withDepthExp({
       success: true,
+      crossBigRealm,
       narrative: `${pillPrefix}突破几乎失败——最后关头灵力稍有不继，你勉强在${toStage}站稳了脚跟，但经脉隐隐作痛。未来一段时间，你需要静养恢复。${gainsText}`,
       newCultivation: advanceCultivation(cultivation, timerType),
       newQiMax: Math.round(qiMaxForStage(toStage) * techniques.qiMaxMult(character)),

@@ -134,12 +134,27 @@ export default function MainPage() {
   const [qiTip, setQiTip] = useState(null); // { rect } | null — 修为行悬浮
   const [pathTip, setPathTip] = useState(null); // { key: 修炼路线 key, rect } | null
   const [locationOptions, setLocationOptions] = useState([]); // 地点情境化选项（suggestions 兜底）
+  const [jadeUnread, setJadeUnread] = useState(0); // 传讯玉符未读总数
   const timelineRef = useRef(null);
   const stickToBottom = useRef(true);
 
   useEffect(() => {
     loadCharacter();
     loadWorldState();
+  }, [characterId]);
+
+  // 传讯玉符未读轮询（30 秒，轻量请求；离开页面清除）
+  useEffect(() => {
+    let cancelled = false;
+    async function pollJadeUnread() {
+      try {
+        const res = await api.get(`/xianxia/characters/${characterId}/jade/threads`);
+        if (!cancelled) setJadeUnread(res.totalUnread || 0);
+      } catch { /* 轮询失败静默 */ }
+    }
+    pollJadeUnread();
+    const id = setInterval(pollJadeUnread, 30000);
+    return () => { cancelled = true; clearInterval(id); };
   }, [characterId]);
 
   useEffect(() => {
@@ -439,22 +454,14 @@ export default function MainPage() {
             </div>
           )}
 
-      {/* 物品使用反馈 */}
-      {itemUseMsg && (
-        <div className="x-item-use-msg" style={{
-          fontSize:11,marginTop:8,padding:'6px 10px',borderRadius:'var(--radius-sm)',
-          background: itemUseMsg.ok ? 'rgba(70,104,91,0.1)' : 'rgba(166,58,43,0.08)',
-          color: itemUseMsg.ok ? 'var(--color-celadon)' : 'var(--color-seal)'
-        }}>
-          {itemUseMsg.text}
-          <button className="btn-outline btn-sm" style={{fontSize:10,marginLeft:8,padding:'1px 6px'}}
-            onClick={function() { setItemUseMsg(null); }}>×</button>
-        </div>
-      )}
         </div>
         <div className="x-panel-footer">
           <button className="btn-outline btn-sm" onClick={() => navigate(`/xianxia/${characterId}/map`)}>地图</button>
           <button className="btn-outline btn-sm" onClick={() => navigate(`/xianxia/${characterId}/journal`)}>日志</button>
+          <button className="btn-outline btn-sm x-jade-entry" onClick={() => navigate(`/xianxia/${characterId}/jade`)}>
+            玉符
+            {jadeUnread > 0 && <span className="x-jade-badge">{jadeUnread}</span>}
+          </button>
           <button className="btn-outline btn-sm" onClick={() => navigate('/xianxia')}>角色列表</button>
         </div>
       </aside>
@@ -649,6 +656,19 @@ export default function MainPage() {
             </div>
           )}
 
+          {/* 物品使用反馈（紧邻行囊，点击处可见） */}
+          {itemUseMsg && (
+            <div className="x-item-use-msg" style={{
+              fontSize:11,marginBottom:8,padding:'6px 10px',borderRadius:'var(--radius-sm)',
+              background: itemUseMsg.ok ? 'rgba(70,104,91,0.1)' : 'rgba(166,58,43,0.08)',
+              color: itemUseMsg.ok ? 'var(--color-celadon)' : 'var(--color-seal)'
+            }}>
+              {itemUseMsg.text}
+              <button className="btn-outline btn-sm" style={{fontSize:10,marginLeft:8,padding:'1px 6px'}}
+                onClick={function() { setItemUseMsg(null); }}>×</button>
+            </div>
+          )}
+
           {/* 背包物品 */}
           {items && items.length > 0 && (
             <>
@@ -669,13 +689,25 @@ export default function MainPage() {
                         onMouseEnter={function(e) { var r = e.currentTarget.getBoundingClientRect(); fetchItemKnowledge(item.id, function(k) { setHoveredItem(Object.assign({}, k, { rect: r })); }); }}
                         onMouseLeave={function() { setHoveredItem(null); }}
                         onClick={async function() {
+                          setItemUseMsg(null);
+                          // 乐观更新：先在本地行囊移除/减量，避免"用了还在"的延迟感；失败时 reload 回滚
+                          setCharacter(function(prev) {
+                            if (!prev) return prev;
+                            var nextItems = (prev.items || []).map(function(it) {
+                              if (it.id !== item.id) return it;
+                              if ((it.quantity || 1) > 1) return Object.assign({}, it, { quantity: it.quantity - 1 });
+                              return null;
+                            }).filter(Boolean);
+                            return Object.assign({}, prev, { items: nextItems });
+                          });
                           try {
-                            setItemUseMsg(null);
                             var res = await api.post('/xianxia/characters/' + characterId + '/use-item', { itemId: item.id });
-                            setItemUseMsg({ ok: true, text: '使用成功！' + (res.deltas ? Object.entries(res.deltas).map(function(d) { return d[0] + (d[1] > 0 ? '+' : '') + d[1]; }).join(', ') : '') });
-                            loadCharacter();
+                            var effects = (res.effectsText && res.effectsText.length > 0) ? '：' + res.effectsText.join('，') : '';
+                            setItemUseMsg({ ok: true, text: '使用【' + item.name + '】' + effects });
+                            await loadCharacter();
                           } catch(e) {
                             setItemUseMsg({ ok: false, text: e.message || '使用失败' });
+                            await loadCharacter(); // 回滚乐观更新
                           }
                         }}
                       >使用</button>

@@ -13,6 +13,7 @@ const scripts = [
   require('./technique_mentor'),
   require('./technique_secret'),
   require('./challenge_duel'),
+  require('./fortune_event'),
   require('./rest_recover'),
   require('./trade'),
   require('./npc_talk'),

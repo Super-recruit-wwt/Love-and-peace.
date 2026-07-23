@@ -8,6 +8,7 @@ const npcEngine = require('./npc');
 const worldEvents = require('./events');
 const chronicle = require('./chronicle');
 const npcBehavior = require('./npc_behavior');
+const jade = require('./jade');
 const { optionsForLocation, withBreakthroughOption, buffsFromPillEffect, parseJson } = require('./scripts/utils');
 const techniques = require('./techniques');
 
@@ -194,6 +195,8 @@ function deleteCharacter(req, res) {
     db.prepare('DELETE FROM xianxia_relationships WHERE character_id = ?').run(character.id);
     db.prepare('DELETE FROM xianxia_items WHERE character_id = ?').run(character.id);
     db.prepare('DELETE FROM xianxia_legacy WHERE character_id = ?').run(character.id);
+    db.prepare('DELETE FROM xianxia_jade_messages WHERE thread_id IN (SELECT id FROM xianxia_jade_threads WHERE character_id = ?)').run(character.id);
+    db.prepare('DELETE FROM xianxia_jade_threads WHERE character_id = ?').run(character.id);
     db.prepare('DELETE FROM xianxia_completed_runs WHERE character_id = ?').run(character.id);
     db.prepare('DELETE FROM xianxia_characters WHERE id = ? AND user_id = ?').run(character.id, req.userId);
   });
@@ -449,6 +452,14 @@ async function processAction(req, res) {
         console.error('NPC 行为触发失败:', e.message);
       }
 
+      // 传讯玉符：NPC 主动来讯（独立 10% 概率，失败不影响主流程）
+      try {
+        const charForJade = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(characterId);
+        if (charForJade) await jade.maybeProactiveMessage(charForJade);
+      } catch (e) {
+        console.error('玉符主动来讯失败:', e.message);
+      }
+
       // 死亡判定：只认数值与显式状态，不扫描叙事文本（叙事措辞不可作为判死依据）
       // 判死条件：显式 statusChanged，或行动结算后生命归零
       try {
@@ -697,7 +708,13 @@ async function useItem(req, res) {
     }
   }
   const deltas = {};
+  const buffTexts = []; // buff 类效果的可读描述（供前端使用反馈）
   let newBuffs = null; // duration 类丹药 → 写入 active_buffs 而非即时改数值
+
+  // 使用反馈的可读标签
+  const USE_EFFECT_LABELS = { health: '生命', qi_current: '灵力', qi_max: '气海', essence: '精', qi: '气', spirit: '神', lifespan_remaining: '寿元', dao_heart: '道心', comprehension: '悟性', alchemy_skill: '炼丹', crafting_skill: '炼器', formation_skill: '阵法', talisman_skill: '符箓', spirit_stones: '灵石' };
+  const USE_BUFF_STAT_LABELS = { essence: '精', qi: '气', spirit: '神', cultivation_efficiency: '修炼效率', insight_mult: '顿悟倍率' };
+  const USE_DURATION_LABELS = { next: '下次修炼生效', '3_actions': '后续 3 次行动有效', '1_battle': '下一场战斗有效', '1_breakthrough': '下次突破生效', '1_insight': '下次顿悟生效' };
 
   if (type === 'pill' || (type === 'material' && Object.keys(rawEffect).length > 0)) {
     const e = type === 'pill' ? effect : rawEffect;
@@ -705,6 +722,11 @@ async function useItem(req, res) {
     if (buffsToAdd) {
       const existing = parseJson(character.active_buffs, []);
       newBuffs = existing.concat(buffsToAdd);
+      for (const b of buffsToAdd) {
+        const statLabel = USE_BUFF_STAT_LABELS[b.stat] || b.stat;
+        const valText = /efficiency|mult/.test(b.stat) ? `×${b.value}` : `临时 +${b.value}`;
+        buffTexts.push(`${statLabel} ${valText}（${USE_DURATION_LABELS[e.duration] || '限时生效'}）`);
+      }
     } else {
       for (const [key, val] of Object.entries(e)) {
         if (typeof val === 'number') {
@@ -766,9 +788,20 @@ async function useItem(req, res) {
   });
   applyUse();
 
+  // 悟性神魂里程碑：三元丹药带来的神增长达档时顿悟（每档 +2，各限一次）
+  try {
+    const ins = require('./insight').settleComprehension(character.id, {});
+    if (ins) deltas.comprehension = (deltas.comprehension || 0) + ins.total;
+  } catch (e) {
+    console.error('[useItem] 悟性结算失败（不影响主流程）:', e.message);
+  }
+
   const updated = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(character.id);
 
-  res.json({ deltas, character: updated });
+  // 可读效果描述：即时数值（永久）+ buff（限时），供前端反馈展示
+  const deltaTexts = Object.entries(deltas)
+    .map(([k, v]) => `${USE_EFFECT_LABELS[k] || k} ${v > 0 ? '+' : ''}${v}`);
+  res.json({ deltas, effectsText: [...deltaTexts, ...buffTexts], character: updated });
 }
 
 // ==================== 地点探索与旅行 ====================
@@ -939,10 +972,10 @@ function getItemKnowledge(req, res) {
   // 玩家已知效果：effect 字段（炼丹产物可见效果）
   var knownEffects = [];
   for (var [key, val] of Object.entries(effect)) {
-    var labels = { health: '恢复生命', qi_current: '恢复灵力', qi_max: '提升气海', essence: '增强体魄', spirit: '增强神识', lifespan: '增加寿元', dao_heart: '提升道心', comprehension: '提升悟性', divine_sense: '提升神识' };
+    var labels = { health: '恢复生命', qi_current: '恢复灵力', qi_max: '提升气海', essence: '增强体魄', spirit: '增强神魂', lifespan: '增加寿元', dao_heart: '提升道心', comprehension: '提升悟性' };
     knownEffects.push((labels[key] || key) + (typeof val === 'number' && val > 0 ? ' +' + val : ' ' + val));
   }
-  if (knownEffects.length === 0) knownEffects.push('效果未知');
+  // 无可解析效果时不塞"效果未知"——物品描述本身已足够展示
 
   // 隐藏效果：raw_side_effect（玩家需通过实验或他人告知才能发现）
   var hiddenEffects = [];
@@ -1070,6 +1103,81 @@ function setTechniqueMain(req, res) {
   res.json({ success: true, type, learned_techniques: techniques.enrichForClient(updated) });
 }
 
+// ==================== 传讯玉符 ====================
+
+/** GET /api/xianxia/characters/:id/jade/threads — 会话列表 + 未读总数 */
+function listJadeThreads(req, res) {
+  const character = db.prepare('SELECT id FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  const threads = jade.listThreads(character.id);
+  const totalUnread = threads.reduce((sum, t) => sum + (t.unreadPlayer || 0), 0);
+  res.json({ threads, totalUnread });
+}
+
+/** GET /api/xianxia/characters/:id/jade/threads/:npcId — 会话消息（打开即清零未读） */
+function getJadeMessages(req, res) {
+  const character = db.prepare('SELECT id FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  const npcId = parseInt(req.params.npcId, 10);
+  if (!Number.isFinite(npcId)) return res.status(400).json({ error: '参数错误' });
+
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const result = jade.getMessages(character.id, npcId, limit);
+  if (!result) return res.status(404).json({ error: '会话不存在' });
+  res.json(result);
+}
+
+/** POST /api/xianxia/characters/:id/jade/send — 玩家发讯，NPC 回复 */
+async function sendJadeMessage(req, res) {
+  const characterId = parseInt(req.params.id, 10);
+  const character = db.prepare('SELECT id FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(characterId, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  if (!rateAllow('jade:' + req.userId, 20, 60000)) {
+    return res.status(429).json({ error: '传讯过于频繁，请稍后再试' });
+  }
+
+  const npcId = parseInt(req.body && req.body.npcId, 10);
+  if (!Number.isFinite(npcId)) return res.status(400).json({ error: '请指定传讯对象' });
+  const content = String((req.body && req.body.content) || '').trim();
+  if (!content) return res.status(400).json({ error: '消息不能为空' });
+  if (content.length > 500) return res.status(400).json({ error: '消息过长（最多 500 字）' });
+
+  try {
+    const result = await enqueue(characterId, () => jade.sendPlayerMessage(characterId, npcId, content));
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    console.error('玉符传讯失败:', err.message);
+    res.status(500).json({ error: '传讯失败，请重试' });
+  }
+}
+
+/** POST /api/xianxia/characters/:id/jade/claim — 领取 NPC 赠礼 */
+async function claimJadeGift(req, res) {
+  const characterId = parseInt(req.params.id, 10);
+  const character = db.prepare('SELECT id FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(characterId, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  const messageId = parseInt(req.body && req.body.messageId, 10);
+  if (!Number.isFinite(messageId)) return res.status(400).json({ error: '参数错误' });
+
+  try {
+    const result = await enqueue(characterId, async () => jade.claimGift(characterId, messageId));
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    console.error('玉符赠礼领取失败:', err.message);
+    res.status(500).json({ error: '领取失败，请重试' });
+  }
+}
+
 module.exports = {
   listCharacters, createCharacter, getCharacter, updateCharacter, deleteCharacter,
   getTimeline, getWorldState, listNpcs, getLegacy,
@@ -1081,5 +1189,6 @@ module.exports = {
   equipItem,
   unequipItem,
   setTechniqueMain,
+  listJadeThreads, getJadeMessages, sendJadeMessage, claimJadeGift,
   mergeDuplicateItems
 };

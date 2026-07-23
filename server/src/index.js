@@ -1002,6 +1002,10 @@ app.post('/api/xianxia/characters/:id/technique-main', authMiddleware, xianxia.s
 app.get('/api/xianxia/characters/:id/discover-locations', authMiddleware, xianxia.refreshDiscoveredLocations);
 app.post('/api/xianxia/characters/:id/travel', authMiddleware, xianxia.travelTo);
 app.get('/api/xianxia/items/:id/knowledge', authMiddleware, xianxia.getItemKnowledge);
+app.get('/api/xianxia/characters/:id/jade/threads', authMiddleware, xianxia.listJadeThreads);
+app.get('/api/xianxia/characters/:id/jade/threads/:npcId', authMiddleware, xianxia.getJadeMessages);
+app.post('/api/xianxia/characters/:id/jade/send', authMiddleware, xianxia.sendJadeMessage);
+app.post('/api/xianxia/characters/:id/jade/claim', authMiddleware, xianxia.claimJadeGift);
 
 // ==================== Static files ====================
 if (fs.existsSync(clientBuildPath)) {

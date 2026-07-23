@@ -29,7 +29,8 @@ function seedTechniques() {
   for (const t of techniques) {
     const req = t.req || {};
     // 完整 req 入 metadata（cultivation/roots/evil/faction/sword/corruption 等），三元门槛同步到专用列
-    const metadata = JSON.stringify({ type: t.type, faction: t.faction || null, req });
+    // stat_bias：功法三元滋养的偏向属性（essence/qi/spirit，诡品无）
+    const metadata = JSON.stringify({ type: t.type, faction: t.faction || null, req, stat_bias: t.stat_bias || null });
     const params = [
       t.grade,
       t.acquire || '',

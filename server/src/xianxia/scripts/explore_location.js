@@ -1,6 +1,7 @@
 // 剧本：探索 — 精气神修正（精-受伤，气-灵石，神-线索发现）
 const { regionOf, rand, randf, pick } = require('./utils');
 const techniques = require('../techniques');
+const fortuneEvent = require('./fortune_event');
 
 const CLUES = [
   '你无意中听到路人提起：苍梧山脉深处近来有异光冲天，深夜尤甚。',
@@ -26,6 +27,15 @@ module.exports = {
   },
 
   resolve(character) {
+    // 15% 概率探索途中撞上机缘事件（fortune_event 同一套事件库与真实结算）
+    if (Math.random() < 0.15) {
+      const fr = fortuneEvent.resolve(character);
+      if (fr.renderParams && fr.renderParams.outcome !== 'no_event') {
+        fr.renderParams.passive = 'explore';
+        return fr;
+      }
+    }
+
     const essence = character.essence || 40;
     const spiritVal = character.spirit || 30;
   const qiVal = character.qi || 40;

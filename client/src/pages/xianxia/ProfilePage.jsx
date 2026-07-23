@@ -12,6 +12,33 @@ const TECH_TYPE_LABELS = { heart: '心法', spell: '术法', movement: '身法',
 // 功法代价词条（秘术/诡术）
 const TECH_COST_LABELS = { health: '生命', spirit: '神', qi_current_ratio: '灵力比例', lifespan: '寿元', spirit_stones: '灵石' };
 
+// 三元偏向标签（与后端 stat_bias 对应）
+const STAT_BIAS_LABELS = { essence: '精', qi: '气', spirit: '神' };
+
+// 基本信息属性说明（悬浮提示，与后端突破/修炼规则保持一致）
+const ATTR_TIPS = {
+  essence: {
+    title: '精 · 体魄',
+    lines: ['肉身根本。精过低（<30）时肉身无法承受突破冲击；低于 50 突破成功率打折。',
+      '来源：偏向「精」的功法滋养、三元丹药、修炼涓流、境界突破。'],
+  },
+  qi: {
+    title: '气 · 真元',
+    lines: ['真元根基。气过低（<30）时突破成功率打折。',
+      '来源：偏向「气」的功法滋养、三元丹药、修炼涓流、境界突破。'],
+  },
+  spirit: {
+    title: '神 · 神魂',
+    lines: ['神魂强度。神过低（<30）时突破成功率大打折扣；搜魂、神算等秘术需消耗神。',
+      '来源：偏向「神」的功法滋养、三元丹药、修炼涓流、境界突破。'],
+  },
+  comprehension: {
+    title: '悟性',
+    lines: ['修炼与参悟的效率。修炼时功法熟练获取 ×（悟性 ÷ 50），悟性越高功法精进越快；',
+      '成长途径：每部功法修至大成/圆满/自创变式（+1/+1/+2）；神魂达 60/120/200/300（各 +2）；破境顿悟（大境界 +2、小境界 +1）；悟道类机缘。'],
+  },
+};
+
 // 功法效果中文化（仅展示已知字段，未知字段不显示避免英文泄漏）
 const TECH_EFFECT_FORMATTERS = {
   efficiency: v => `修炼效率 ×${v}`,
@@ -56,7 +83,7 @@ const TECH_EFFECT_FORMATTERS = {
   heal: v => `恢复生命 +${v}`,
   corruption: v => `异化 +${v}`,
   power_buff_pct: v => `临时战力 +${Math.round(v * 100)}%`,
-  breakthrough_spirit: v => `破境神识 +${v}`,
+  breakthrough_spirit: v => `破境凝神 +${v}`,
   escape: () => '遁走千里',
   rob_item: () => '顺手取材',
   random_material: () => '虚质成物',
@@ -68,7 +95,7 @@ const TECH_FLAG_LABELS = {
   carry_bonus: '负重天赋', desert_navigate: '沙海辨途', sea_explore: '深海探索',
   ice_slow: '寒冰迟滞', ignore_defense: '破防', dao_preserve: '道基稳固',
   break_degrade_reduce: '跌落减免', sword_insight: '剑心通明', golden_body: '金刚不坏',
-  shadow_independent: '影神自立', spirit_growth: '神识茁壮',
+  shadow_independent: '影神自立', spirit_growth: '神魂茁壮',
 };
 
 export default function ProfilePage() {
@@ -78,6 +105,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(null); // 正在设为主修的功法名
   const [sanyuanTip, setSanyuanTip] = useState(null); // 功法三元滋养规则悬浮层
+  const [attrTip, setAttrTip] = useState(null); // 基本信息属性说明悬浮层 { rect, title, lines }
 
   useEffect(() => {
     api.get(`/xianxia/characters/${characterId}`).then(res => {
@@ -116,12 +144,19 @@ export default function ProfilePage() {
       {sanyuanTip && (
         <HoverTip rect={sanyuanTip.rect} width={270} prefer="right" className="x-stat-tip" onClose={() => setSanyuanTip(null)}>
           <div className="x-stat-tip-title">三元滋养 · 《{sanyuanTip.name}》</div>
-          <div className="x-stat-tip-line">突破大境界时，所修功法滋养精、气、神。</div>
-          <div className="x-stat-tip-line">· 各系只取加成最高的一部功法生效，多部同修不叠加</div>
+          <div className="x-stat-tip-line">每部功法只滋养其偏向的一元（精/气/神其一）；随熟练加深持续滋养，修至大成时滋养尽出。</div>
+          <div className="x-stat-tip-line">· 每一元只取偏向该元的功法中加成最高的一部，多部同修不叠加</div>
           <div className="x-stat-tip-line">· 品级越高，加成越多、上限越高（凡/灵/宝/玄/圣：30/60/120/200/400）</div>
           <div className="x-stat-tip-line">
-            · 此功法已滋养 {sanyuanTip.gained}/{sanyuanTip.cap}{sanyuanTip.gained >= sanyuanTip.cap ? '——已耗尽，不再提供' : ''}
+            · 此功法偏向「{STAT_BIAS_LABELS[sanyuanTip.bias] || '气'}」，已滋养 {sanyuanTip.gained}/{sanyuanTip.cap}{sanyuanTip.gained >= sanyuanTip.cap ? '——滋养已尽出' : ''}
           </div>
+        </HoverTip>
+      )}
+      {/* 基本信息属性说明悬浮层（悟性/精/气/神） */}
+      {attrTip && (
+        <HoverTip rect={attrTip.rect} width={250} prefer="right" className="x-stat-tip" onClose={() => setAttrTip(null)}>
+          <div className="x-stat-tip-title">{attrTip.title}</div>
+          {attrTip.lines.map((line, i) => <div key={i} className="x-stat-tip-line">{line}</div>)}
         </HoverTip>
       )}
       <div className="x-header">
@@ -137,9 +172,26 @@ export default function ProfilePage() {
           <div className="x-info-block"><span className="x-info-label">修为</span><span className="x-info-value">{character.qi_current}/{character.qi_max}</span></div>
           <div className="x-info-block"><span className="x-info-label">灵石</span><span className="x-info-value">{character.spirit_stones}</span></div>
           <div className="x-info-block"><span className="x-info-label">道心</span><span className="x-info-value">{character.dao_heart}</span></div>
-          <div className="x-info-block"><span className="x-info-label">悟性</span><span className="x-info-value">{character.comprehension}</span></div>
-          <div className="x-info-block"><span className="x-info-label">神识</span><span className="x-info-value">{character.divine_sense}</span></div>
-          <div className="x-info-block"><span className="x-info-label">气</span><span className="x-info-value">{character.qi ?? 40}</span></div>
+          <div className="x-info-block" style={{ cursor: 'help' }}
+            onMouseEnter={(e) => setAttrTip({ rect: e.currentTarget.getBoundingClientRect(), ...ATTR_TIPS.essence })}
+            onMouseLeave={() => setAttrTip(null)}>
+            <span className="x-info-label">精</span><span className="x-info-value">{character.essence ?? 40}</span>
+          </div>
+          <div className="x-info-block" style={{ cursor: 'help' }}
+            onMouseEnter={(e) => setAttrTip({ rect: e.currentTarget.getBoundingClientRect(), ...ATTR_TIPS.qi })}
+            onMouseLeave={() => setAttrTip(null)}>
+            <span className="x-info-label">气</span><span className="x-info-value">{character.qi ?? 40}</span>
+          </div>
+          <div className="x-info-block" style={{ cursor: 'help' }}
+            onMouseEnter={(e) => setAttrTip({ rect: e.currentTarget.getBoundingClientRect(), ...ATTR_TIPS.spirit })}
+            onMouseLeave={() => setAttrTip(null)}>
+            <span className="x-info-label">神</span><span className="x-info-value">{character.spirit ?? 30}</span>
+          </div>
+          <div className="x-info-block" style={{ cursor: 'help' }}
+            onMouseEnter={(e) => setAttrTip({ rect: e.currentTarget.getBoundingClientRect(), ...ATTR_TIPS.comprehension })}
+            onMouseLeave={() => setAttrTip(null)}>
+            <span className="x-info-label">悟性</span><span className="x-info-value">{character.comprehension}</span>
+          </div>
           <div className="x-info-block"><span className="x-info-label">名望</span><span className="x-info-value">{character.fame}</span></div>
           <div className="x-info-block"><span className="x-info-label">恶名</span><span className="x-info-value">{character.infamy}</span></div>
           <div className="x-info-block"><span className="x-info-label">炼丹</span><span className="x-info-value">{character.alchemy_skill}</span></div>
@@ -213,10 +265,10 @@ export default function ProfilePage() {
                           {t.stat_cap != null && (
                             <span
                               style={{ cursor: 'help', borderBottom: '1px dashed var(--color-ink-3)' }}
-                              onMouseEnter={(e) => setSanyuanTip({ rect: e.currentTarget.getBoundingClientRect(), name: t.name, gained: t.stat_gained || 0, cap: t.stat_cap })}
+                              onMouseEnter={(e) => setSanyuanTip({ rect: e.currentTarget.getBoundingClientRect(), name: t.name, gained: t.stat_gained || 0, cap: t.stat_cap, bias: t.stat_bias })}
                               onMouseLeave={() => setSanyuanTip(null)}
                             >
-                              {` · 三元 ${t.stat_gained || 0}/${t.stat_cap}`}
+                              {` · ${STAT_BIAS_LABELS[t.stat_bias] || '三元'} ${t.stat_gained || 0}/${t.stat_cap}`}
                             </span>
                           )}
                         </span>

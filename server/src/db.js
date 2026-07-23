@@ -307,11 +307,34 @@ function init() {
       FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE
     );
 
+    -- 传讯玉符：角色 ↔ NPC 会话
+    CREATE TABLE IF NOT EXISTS xianxia_jade_threads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id INTEGER NOT NULL REFERENCES xianxia_characters(id) ON DELETE CASCADE,
+      npc_id INTEGER NOT NULL REFERENCES xianxia_npcs(id) ON DELETE CASCADE,
+      last_message_at TEXT,
+      unread_player INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(character_id, npc_id)
+    );
+
+    -- 传讯玉符：会话消息（item_payload 为 NPC 赠礼 JSON，含 claimed 标记）
+    CREATE TABLE IF NOT EXISTS xianxia_jade_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id INTEGER NOT NULL REFERENCES xianxia_jade_threads(id) ON DELETE CASCADE,
+      sender TEXT NOT NULL CHECK(sender IN ('player','npc')),
+      content TEXT NOT NULL,
+      item_payload TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_xianxia_chars_user ON xianxia_characters(user_id);
     CREATE INDEX IF NOT EXISTS idx_xianxia_timeline_char ON xianxia_timeline(character_id, id);
     CREATE INDEX IF NOT EXISTS idx_xianxia_rel_char ON xianxia_relationships(character_id);
     CREATE INDEX IF NOT EXISTS idx_xianxia_items_char ON xianxia_items(character_id);
     CREATE INDEX IF NOT EXISTS idx_xianxia_legacy_char ON xianxia_legacy(character_id);
+    CREATE INDEX IF NOT EXISTS idx_jade_threads_char ON xianxia_jade_threads(character_id);
+    CREATE INDEX IF NOT EXISTS idx_jade_messages_thread ON xianxia_jade_messages(thread_id, id);
   `);
 
   // 兼容旧库：users 增加 email_verified 列（存量用户默认 1 = 已验证）
@@ -344,6 +367,10 @@ function init() {
   safeAddColumn('xianxia_characters', 'pending_craft', 'TEXT');
   // 永久三元丹服用计数：{ "洗髓丹": 2 }（每种限 3 次，useItem 消费）
   safeAddColumn('xianxia_characters', 'pill_usage', "TEXT DEFAULT '{}'");
+  // 机缘事件一次性标记：[eventId]（fortune_event 写入，once 事件防重复触发）
+  safeAddColumn('xianxia_characters', 'fortune_events', "TEXT DEFAULT '[]'");
+  // 悟性神魂里程碑：[60,120,...]（insight.js 写入，神魂达档给悟性，防跌落再涨反复领取）
+  safeAddColumn('xianxia_characters', 'insight_milestones', "TEXT DEFAULT '[]'");
   safeAddColumn('xianxia_items', 'attack', 'REAL');
   safeAddColumn('xianxia_items', 'defense', 'REAL');
   safeAddColumn('xianxia_items', 'slot', 'TEXT');

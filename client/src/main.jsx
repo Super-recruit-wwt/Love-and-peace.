@@ -21,6 +21,7 @@ import XianxiaMain from './pages/xianxia/MainPage';
 import XianxiaProfile from './pages/xianxia/ProfilePage';
 import XianxiaMap from './pages/xianxia/MapPage';
 import XianxiaJournal from './pages/xianxia/JournalPage';
+import XianxiaJade from './pages/xianxia/JadePage';
 import XianxiaLegacy from './pages/xianxia/LegacyPage';
 import '@fontsource/noto-serif-sc/300.css';
 import '@fontsource/noto-serif-sc/400.css';
@@ -84,6 +85,7 @@ function App() {
         <Route path="/xianxia/:characterId/profile" element={<ProtectedRoute><XianxiaProfile /></ProtectedRoute>} />
         <Route path="/xianxia/:characterId/map" element={<ProtectedRoute><XianxiaMap /></ProtectedRoute>} />
         <Route path="/xianxia/:characterId/journal" element={<ProtectedRoute><XianxiaJournal /></ProtectedRoute>} />
+        <Route path="/xianxia/:characterId/jade" element={<ProtectedRoute><XianxiaJade /></ProtectedRoute>} />
       </Routes>
     </div>
   );

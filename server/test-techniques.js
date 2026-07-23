@@ -120,19 +120,19 @@ check('未学功法转修被拒', swFail.renderParams.outcome === 'not_learned')
 console.log('\n[5] 突破结算');
 const breakChar = fakeChar({
   dao_heart: 100, health: 100, essence: 80, spirit: 80, qi: 80,
-  learned_techniques: JSON.stringify([{ name: '浑天心法', depth: 0, main: true }]), // qi_per_break 8 / spirit_per_break 5, qi_max 420
+  learned_techniques: JSON.stringify([{ name: '浑天心法', depth: 0, main: true }]), // qi_max 420（倍率 ×2.8）
 });
 let sawGain = false, sawQiMax = false;
 for (let i = 0; i < 30; i++) {
   const res = breakthrough.resolveBreakthroughResult(breakChar, 'breakthrough');
   if (res.success) {
     sawQiMax = res.newQiMax === Math.round(qiMaxForStage('炼气中期') * 420 / 150);
-    if (res.statGains && res.statGains.qi === 11 && res.statGains.spirit === 8 && res.statGains.essence === 8) sawGain = true;
+    if (res.statGains && res.statGains.qi === 3 && res.statGains.spirit === 3 && res.statGains.essence === 3) sawGain = true;
     break;
   }
 }
 check('突破成功 newQiMax 含功法倍率(×2.8)', sawQiMax);
-check('突破成功三元=功法加成+境界基底（气8+3/神5+3/精5+3）', sawGain);
+check('突破成功三元=境界基底（炼气层级×3，各+3）', sawGain);
 
 // ---------- 6. 入宗授予 ----------
 console.log('\n[6] 入宗授予');
@@ -663,36 +663,13 @@ console.log('\n[17] 按类型主修与批量经验');
 console.log('\n[18] 精气神成长');
 let pillTestDone = Promise.resolve();
 {
-  // 凡品功法默认三元（吐纳基础 凡品：perBreak 2，cap 30）
+  // 突破不再直接给正向三元（正向滋养改由熟练度驱动）；凡品无负值代价 → gains=null
   const tg = techniques.breakthroughStatGains(fakeChar({
     learned_techniques: JSON.stringify([{ name: '吐纳基础', depth: 0, exp: 0, main: true }]),
   }));
-  check('凡品功法默认三元 各+2', tg.gains && tg.gains.essence === 2 && tg.gains.qi === 2 && tg.gains.spirit === 2,
-    JSON.stringify(tg.gains));
+  check('突破不再直接给正向三元（gains=null）', tg.gains === null, JSON.stringify(tg.gains));
 
-  // 总量取单功法最大值：吐纳基础 + 七式快剑（均凡品）→ 各 +2（不再叠加为 +4）
-  const tgMulti = techniques.breakthroughStatGains(fakeChar({
-    learned_techniques: JSON.stringify([
-      { name: '吐纳基础', depth: 0, exp: 0, main: true },
-      { name: '七式快剑', depth: 0, exp: 0, main: true },
-    ]),
-  }));
-  check('多部同修不叠加：两部凡品取 max 各 +2', tgMulti.gains && tgMulti.gains.essence === 2 && tgMulti.gains.qi === 2 && tgMulti.gains.spirit === 2,
-    JSON.stringify(tgMulti.gains));
-  const qjsj = tgMulti.list.find(e => e.name === '七式快剑');
-  check('非主修功法各自累计 stat_gained', qjsj && qjsj.stat_gained === 6, JSON.stringify(qjsj));
-
-  // 品级取高：凡品(+2) + 圣品归元天书(精默认10/气12/神12) → 精+10 气+12 神+12，而非加总
-  const tgMax = techniques.breakthroughStatGains(fakeChar({
-    learned_techniques: JSON.stringify([
-      { name: '吐纳基础', depth: 0, exp: 0, main: true },
-      { name: '归元天书', depth: 0, exp: 0, main: false },
-    ]),
-  }));
-  check('凡品+圣品取 max（精+10 气+12 神+12）', tgMax.gains && tgMax.gains.essence === 10 && tgMax.gains.qi === 12 && tgMax.gains.spirit === 12,
-    JSON.stringify(tgMax.gains));
-
-  // 诡品负值代价与正收益并存：吐纳基础 +2 与虚海心经 -8 → 精 -6，气/神仍 +2
+  // 诡品负值代价与凡品同修：只有虚海心经的 精-8，凡品不再提供正向
   const tgMix = techniques.breakthroughStatGains(fakeChar({
     strange_corruption: 50,
     learned_techniques: JSON.stringify([
@@ -700,24 +677,49 @@ let pillTestDone = Promise.resolve();
       { name: '虚海心经', depth: 0, exp: 0, main: false },
     ]),
   }));
-  check('诡品代价与正收益并存（精-6 气+2 神+2）', tgMix.gains && tgMix.gains.essence === -6 && tgMix.gains.qi === 2 && tgMix.gains.spirit === 2,
+  check('诡品代价照常生效（仅 精-8）', tgMix.gains && tgMix.gains.essence === -8 && !tgMix.gains.qi && !tgMix.gains.spirit,
     JSON.stringify(tgMix.gains));
 
-  // 上限削减：stat_gained=28 时只剩 2 点额度
-  const tg2 = techniques.breakthroughStatGains(fakeChar({
-    learned_techniques: JSON.stringify([{ name: '吐纳基础', depth: 0, exp: 0, main: true, stat_gained: 28 }]),
-  }));
-  check('上限削减：仅剩 essence +2', tg2.gains && tg2.gains.essence === 2 && !tg2.gains.qi && !tg2.gains.spirit && tg2.capped,
-    JSON.stringify(tg2));
-  check('stat_gained 累计到 30', (tg2.list.find(e => e.name === '吐纳基础') || {}).stat_gained === 30);
+  // 熟练度驱动：凡品吐纳基础 cap 30，大成门槛 exp 120
+  // exp 50（小成）→ stat_gained = round(30 × 50/120) = 13
+  const de1 = techniques.addDepthExp(fakeChar({
+    learned_techniques: JSON.stringify([{ name: '吐纳基础', depth: 0, exp: 0, main: true }]),
+  }), '吐纳基础', 50);
+  const de1Entry = de1.list.find(e => e.name === '吐纳基础');
+  check('小成（exp 50）滋养池 13/30', de1Entry && de1Entry.stat_gained === 13, JSON.stringify(de1Entry));
 
-  // 达到上限后不再给加成
-  const tg3 = techniques.breakthroughStatGains(fakeChar({
+  // 继续修至 exp 120（大成）→ stat_gained 满额 30
+  const de2 = techniques.addDepthExp(fakeChar({
+    learned_techniques: JSON.stringify([{ name: '吐纳基础', depth: 1, exp: 50, main: true, stat_gained: 13 }]),
+  }), '吐纳基础', 70);
+  const de2Entry = de2.list.find(e => e.name === '吐纳基础');
+  check('大成（exp 120）滋养尽出 30/30', de2Entry && de2Entry.depth === 2 && de2Entry.stat_gained === 30, JSON.stringify(de2Entry));
+
+  // stat_gained 只增不减：旧存档已有 30，低 exp 不回落
+  const de3 = techniques.addDepthExp(fakeChar({
     learned_techniques: JSON.stringify([{ name: '吐纳基础', depth: 0, exp: 0, main: true, stat_gained: 30 }]),
-  }));
-  check('达到上限后 gains=null', tg3.gains === null);
+  }), '吐纳基础', 10);
+  check('stat_gained 只增不减（旧值 30 不回落）', (de3.list.find(e => e.name === '吐纳基础') || {}).stat_gained === 30);
 
-  // 诡品：显式负值代价，不占上限
+  // 结算：属性独占——吐纳基础偏向「气」全额 30 进气，七式快剑偏向「精」全额 12 进精，神不涨
+  const grant = techniques.applyDepthStatGrants(999999, '[]',
+    JSON.stringify([{ name: '吐纳基础', stat_gained: 30 }, { name: '七式快剑', stat_gained: 12 }]));
+  check('结算按偏向分系入账（气 +30、精 +12、神不涨）', grant && grant.qi === 30 && grant.essence === 12 && !grant.spirit,
+    JSON.stringify(grant));
+
+  // 结算：同偏向取最大值不叠加（吐纳 30 与青云心法 20 同偏「气」→ 气只 +30）
+  const grantSame = techniques.applyDepthStatGrants(999999, '[]',
+    JSON.stringify([{ name: '吐纳基础', stat_gained: 30 }, { name: '青云心法', stat_gained: 20 }]));
+  check('同偏向取最大值不叠加（气 +30，非 +50）', grantSame && grantSame.qi === 30 && !grantSame.essence && !grantSame.spirit,
+    JSON.stringify(grantSame));
+
+  // 结算：前后无增长 → null（不动库）
+  const grant0 = techniques.applyDepthStatGrants(999999,
+    JSON.stringify([{ name: '吐纳基础', stat_gained: 30 }]),
+    JSON.stringify([{ name: '吐纳基础', stat_gained: 30 }]));
+  check('无增长时结算返回 null', grant0 === null);
+
+  // 诡品：显式负值代价（单独验证，不累计 stat_gained）
   const tg4 = techniques.breakthroughStatGains(fakeChar({
     strange_corruption: 50,
     learned_techniques: JSON.stringify([{ name: '虚海心经', depth: 0, exp: 0, main: true }]),
@@ -736,6 +738,8 @@ let pillTestDone = Promise.resolve();
   const enXh = enriched.find(e => e.name === '虚海心经');
   check('enrichForClient 返回 stat_gained/stat_cap', enTn && enTn.stat_gained === 6 && enTn.stat_cap === 30,
     JSON.stringify(enTn && { stat_gained: enTn.stat_gained, stat_cap: enTn.stat_cap }));
+  check('enrichForClient 透出偏向（吐纳偏气、诡品 null）', enTn && enTn.stat_bias === 'qi' && enXh && enXh.stat_bias === null,
+    JSON.stringify({ tn: enTn && enTn.stat_bias, xh: enXh && enXh.stat_bias }));
   check('诡品 stat_cap 为 null', enXh && enXh.stat_cap === null);
 
   // 小境界突破：精气神各 +当前大境界层级（炼气 +1）
@@ -749,6 +753,50 @@ let pillTestDone = Promise.resolve();
   if (smallGain) {
     check('小突破精气神各 +1', smallGain.deltas.essence === 1 && smallGain.deltas.qi === 1 && smallGain.deltas.spirit === 1,
       JSON.stringify(smallGain.deltas));
+    check('小突破顿悟 悟性 +1', smallGain.deltas.comprehension === 1, JSON.stringify(smallGain.deltas));
+  }
+
+  // 悟性成长：功法深造顿悟（纯函数）
+  const insight = require('./src/xianxia/insight');
+  const dDepth = insight.depthInsightDelta(
+    JSON.stringify([{ name: '吐纳基础', depth: 1 }]),
+    JSON.stringify([{ name: '吐纳基础', depth: 2 }]));
+  check('深造顿悟：小成→大成 悟性 +1', dDepth === 1, `delta=${dDepth}`);
+  const dDepth4 = insight.depthInsightDelta(
+    JSON.stringify([{ name: '吐纳基础', depth: 0 }]),
+    JSON.stringify([{ name: '吐纳基础', depth: 4 }, { name: '七式快剑', depth: 2 }]));
+  check('深造顿悟：初窥→自创变式 +4，另一部大成 +1，合计 +5', dDepth4 === 5, `delta=${dDepth4}`);
+  check('深造顿悟幂等：快照相同不再给', insight.depthInsightDelta(
+    JSON.stringify([{ name: '吐纳基础', depth: 2 }]),
+    JSON.stringify([{ name: '吐纳基础', depth: 2 }])) === 0);
+
+  // 悟性成长：神魂里程碑（纯函数）
+  const sm = insight.spiritMilestoneDelta('[]', 130);
+  check('神魂里程碑：神 130 领 60/120 两档 悟性 +4', sm.delta === 4 && sm.claimed.join() === '60,120',
+    JSON.stringify(sm));
+  check('神魂里程碑不重复领取', insight.spiritMilestoneDelta(JSON.stringify(sm.claimed), 130).delta === 0);
+  check('神魂里程碑：神不足 60 不给', insight.spiritMilestoneDelta('[]', 59).delta === 0);
+
+  // 悟性统一结算（真实落库）：bonus + 神魂里程碑 + clamp 100
+  {
+    const email = `insight_test_${Date.now()}@example.com`;
+    const user = db.prepare('INSERT INTO users (email, password_hash, nickname) VALUES (?, ?, ?)')
+      .run(email, 'x', '悟性测试');
+    const char = db.prepare(
+      "INSERT INTO xianxia_characters (user_id, name, gender, spirit_roots, birth_region, birth_background, comprehension, spirit) VALUES (?, ?, ?, ?, ?, ?, 99, 130)"
+    ).run(user.lastInsertRowid, '悟道者', 'male', '{}', '中州', '猎户');
+    const charId = char.lastInsertRowid;
+    try {
+      const r = insight.settleComprehension(charId, { bonus: 2 });
+      const after = db.prepare('SELECT comprehension, insight_milestones FROM xianxia_characters WHERE id = ?').get(charId);
+      check('结算：bonus 2 + 神魂两档 4 = 6，clamp 到 100', r && r.total === 6 && after.comprehension === 100,
+        JSON.stringify({ r, after }));
+      check('结算落库里程碑', JSON.parse(after.insight_milestones).join() === '60,120');
+      check('结算幂等：再次结算返回 null', insight.settleComprehension(charId, {}) === null);
+    } finally {
+      db.prepare('DELETE FROM xianxia_characters WHERE id = ?').run(charId);
+      db.prepare('DELETE FROM users WHERE id = ?').run(user.lastInsertRowid);
+    }
   }
 
   // 日常涓流：修满 30 天各 +1；29 天没有
@@ -899,7 +947,135 @@ console.log('\n[20] 行动选项与叙事关联');
   }
 }
 
+// ---------- 21. 机缘事件库 ----------
+console.log('\n[21] 机缘事件库');
+{
+  const fs = require('fs');
+  const evs = JSON.parse(fs.readFileSync('./src/xianxia/seeds/fortune_events.json', 'utf8'));
+  check('事件库至少 20 条', evs.length >= 20, `实际 ${evs.length}`);
+
+  const VALID_STATS = ['essence', 'qi', 'spirit', 'dao_heart', 'comprehension', 'fortune'];
+  const BANDS = ['mortal', 'low', 'mid', 'high'];
+  let schemaOk = true;
+  for (const e of evs) {
+    if (!e.id || !e.title || !Array.isArray(e.band) || !e.setup || !e.success || !e.success.text) schemaOk = false;
+    if (!e.band.every(b => BANDS.includes(b))) schemaOk = false;
+    if (e.check && !VALID_STATS.includes(e.check.stat)) schemaOk = false;
+    if (e.failure && !e.failure.text) schemaOk = false;
+    if (!Array.isArray(e.success.options) || e.success.options.length < 2) schemaOk = false;
+  }
+  check('事件结构合法', schemaOk);
+  check('诡道/肉身/匠道事件均有覆盖',
+    evs.some(e => (e.min_corruption || 0) > 0) && evs.some(e => (e.paths || []).includes('physical')) && evs.some(e => (e.paths || []).includes('artisan')));
+  for (const b of BANDS) check(`分档 ${b} 有事件`, evs.some(e => e.band.includes(b)));
+
+  const fe = require('./src/xianxia/scripts/fortune_event');
+  check('匹配 外出历练一番', !!fe.match('外出历练一番'));
+  check('不匹配 修炼', fe.match('修炼') === null);
+  check('分档推导：炼气=low', fe._internals.bandOf(fakeChar()) === 'low');
+  check('分档推导：金丹=mid', fe._internals.bandOf(fakeChar({ cultivation_paths: JSON.stringify({ xiandao: '金丹初期' }) })) === 'mid');
+  check('分档推导：无路径=mortal', fe._internals.bandOf(fakeChar({ cultivation_paths: '{}' })) === 'mortal');
+  check('分档推导：诡道同化=mid', fe._internals.bandOf(fakeChar({ cultivation_paths: JSON.stringify({ strange: '同化' }) })) === 'mid');
+
+  // 结算结构：金丹修士(mid) 反复触发均合法
+  const midChar = fakeChar({ cultivation_paths: JSON.stringify({ xiandao: '金丹初期' }) });
+  let structOk = true;
+  for (let i = 0; i < 30; i++) {
+    const r = fe.resolve(midChar);
+    if (typeof r.resultText !== 'string' || r.resultText.length < 10 || !Array.isArray(r.options)) structOk = false;
+    if (!(r.elapsedDays >= 2 && r.elapsedDays <= 7)) structOk = false;
+    if (r.items && r.items.some(it => it.effect && typeof it.effect !== 'string')) structOk = false;
+  }
+  check('mid 档 30 连发结算结构合法', structOk);
+
+  // 异化度门槛：无异化角色永远抽不到诡道事件
+  let strangeHit = false;
+  for (let i = 0; i < 40; i++) {
+    const r = fe.resolve(fakeChar());
+    if (r.renderParams && String(r.renderParams.eventId || '').startsWith('str_')) strangeHit = true;
+  }
+  check('无异化不触发诡道事件', !strangeHit);
+
+  // once 事件不重复：已在触发列表中的事件被排除
+  const onceEv = evs.find(e => e.once && e.band.includes('mid') && !(e.min_corruption > 0));
+  check('存在 mid 档 once 事件', !!onceEv);
+  if (onceEv) {
+    const doneChar = fakeChar({
+      cultivation_paths: JSON.stringify({ xiandao: '金丹初期' }),
+      fortune_events: JSON.stringify([onceEv.id]),
+    });
+    let hit = false;
+    for (let i = 0; i < 60; i++) {
+      const r = fe.resolve(doneChar);
+      if (r.renderParams && r.renderParams.eventId === onceEv.id) hit = true;
+    }
+    check('once 事件不重复触发', !hit);
+  }
+
+  // 高异化可触发诡道事件（str 前缀）
+  let strangeOk = false;
+  for (let i = 0; i < 60 && !strangeOk; i++) {
+    const r = fe.resolve(fakeChar({
+      strange_corruption: 60,
+      cultivation_paths: JSON.stringify({ xiandao: '金丹初期', strange: '同化' }),
+    }));
+    if (r.renderParams && String(r.renderParams.eventId || '').startsWith('str_')) strangeOk = true;
+  }
+  check('高异化可触发诡道事件', strangeOk);
+
+  // 肉身事件只对肉身路径开放
+  let physBlocked = true;
+  for (let i = 0; i < 40; i++) {
+    const r = fe.resolve(fakeChar({ cultivation_paths: JSON.stringify({ xiandao: '筑基初期' }) }));
+    if (r.renderParams && String(r.renderParams.eventId || '').startsWith('phys_')) physBlocked = false;
+  }
+  check('非肉身路径不触发肉身事件', physBlocked);
+}
+
+// ---------- 22. 机缘事件被动触发 ----------
+console.log('\n[22] 机缘事件被动触发');
+{
+  const explore = require('./src/xianxia/scripts/explore_location');
+  const travelScript = require('./src/xianxia/scripts/travel');
+
+  // 探索：15% 概率，足够多次后必出现机缘事件，且结构合法
+  let exploreHit = null;
+  for (let i = 0; i < 300 && !exploreHit; i++) {
+    const r = explore.resolve(fakeChar());
+    if (r.renderParams && r.renderParams.passive === 'explore') exploreHit = r;
+  }
+  check('探索可被动撞上机缘事件', !!exploreHit);
+  if (exploreHit) {
+    check('探索机缘结构合法', typeof exploreHit.resultText === 'string' && exploreHit.resultText.length > 10 && Array.isArray(exploreHit.options));
+  }
+
+  // 赶路：触发机缘时行程照常完成（地点/耗时保留），事件收益合并
+  let travelHit = null;
+  for (let i = 0; i < 300 && !travelHit; i++) {
+    const r = travelScript.resolve(fakeChar({ current_location: '中州-云来城' }), { destination: '云来城' });
+    if (r.renderParams && r.renderParams.fortuneEventId) travelHit = r;
+  }
+  check('赶路可被动撞上机缘事件', !!travelHit);
+  if (travelHit) {
+    check('赶路机缘：行程照常完成', !!(travelHit.sets && travelHit.sets.current_location) && travelHit.elapsedDays >= 1);
+    check('赶路机缘：叙事含际遇段', travelHit.resultText.includes('途中另有际遇'));
+    check('赶路机缘：选项来自事件', Array.isArray(travelHit.options) && travelHit.options.length >= 2);
+  }
+
+  // 未触发机缘时赶路仍按原逻辑
+  let plainTravel = null;
+  for (let i = 0; i < 50 && !plainTravel; i++) {
+    const r = travelScript.resolve(fakeChar({ current_location: '中州-云来城' }), { destination: '云来城' });
+    if (r.renderParams && !r.renderParams.fortuneEventId) plainTravel = r;
+  }
+  check('未触发机缘时赶路正常', !!plainTravel && !plainTravel.resultText.includes('途中另有际遇'));
+}
+
 pillTestDone.catch(e => { console.error('丹药测试异常:', e && e.message); });
-// IIFE 主体同步执行完毕，此处 pass/fail 已是最终值
-console.log(`\n结果：${pass} 通过，${fail} 失败`);
-process.exit(fail > 0 ? 1 : 0);
+// 传讯玉符测试（异步段，与丹药测试一并等待后统一输出结果）
+const jadeTestDone = require('./test-jade').run(check)
+  .catch(e => { console.error('玉符测试异常:', e && e.message); fail++; });
+Promise.all([pillTestDone, jadeTestDone]).then(() => {
+  console.log(`\n结果：${pass} 通过，${fail} 失败`);
+  process.exit(fail > 0 ? 1 : 0);
+});
