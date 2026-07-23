@@ -4,6 +4,7 @@
 const { db } = require('../db');
 const npcEngine = require('./npc');
 const xianxiaLLM = require('./llm');
+const techniques = require('./techniques');
 
 // 关系类型中文标签（供 prompt 与前端展示参考）
 const REL_TYPE_LABELS = {
@@ -109,12 +110,12 @@ function getMessages(characterId, npcId, limit = 50) {
 
 // ==================== 礼物池 ====================
 
-/** 按 NPC 阵营从全局模板池挑选赠礼：30% 功法 / 40% 丹药 / 30% 材料或法宝 */
-function pickGift(npc) {
+/** 按 NPC 阵营从全局模板池挑选赠礼：30% 功法 / 40% 丹药 / 30% 材料或法宝。opts.forceType 可指定类型（测试用） */
+function pickGift(npc, opts = {}) {
   const gradeIn = GIFT_GRADES.map(g => `'${g}'`).join(',');
   const roll = Math.random();
   let rows = [];
-  if (roll < 0.30) {
+  if (opts.forceType === 'technique' || (!opts.forceType && roll < 0.30)) {
     rows = db.prepare(
       `SELECT * FROM xianxia_items WHERE character_id IS NULL AND item_type = 'technique' AND grade IN (${gradeIn})`
     ).all();
@@ -125,7 +126,7 @@ function pickGift(npc) {
       });
       if (same.length > 0) rows = same;
     }
-  } else if (roll < 0.70) {
+  } else if (opts.forceType === 'pill' || (!opts.forceType && roll < 0.70)) {
     rows = db.prepare(
       `SELECT * FROM xianxia_items WHERE character_id IS NULL AND item_type = 'pill' AND grade IN (${gradeIn})`
     ).all();
@@ -280,7 +281,7 @@ async function sendPlayerMessage(characterId, npcId, content, opts = {}) {
   let giftChance = 0;
   if (types.some(t => GIFT_RELATIONS_HIGH.includes(t))) giftChance = 0.12;
   else if (types.includes('friend')) giftChance = 0.06;
-  const gift = (opts.forceGift || Math.random() < giftChance) ? pickGift(npc) : null;
+  const gift = (opts.forceGift || Math.random() < giftChance) ? pickGift(npc, opts) : null;
 
   const replyText = await generateNpcReply(npc, relation, history, content, gift);
   const replyMsg = addMessage(thread.id, 'npc', replyText, gift ? JSON.stringify(gift) : null, false);
@@ -340,6 +341,36 @@ async function maybeProactiveMessage(character, opts = {}) {
 }
 
 /** 领取赠礼：校验归属与未领取 → 物品入库 → 标记 claimed → 写时间线 */
+/**
+ * 功法礼物：写入 learned_techniques（学会），而不是塞一个行囊物品。
+ * - 未学过：直接习得（NPC 赠予等同宗门传功，跳过 req 校验）
+ * - 已学过：转为该功法 30 点深度经验（重复赠予不浪费）
+ * 返回 { learned, becameMain?, dupExp? }
+ */
+function learnTechniqueGift(characterId, payload) {
+  const character = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(characterId);
+  if (!character) return { learned: false };
+  const r = techniques.learnTechnique(character, payload.name, { bypassReq: true });
+  if (r.learned) {
+    db.prepare("UPDATE xianxia_characters SET learned_techniques = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(JSON.stringify(r.list), characterId);
+    return { learned: true, becameMain: r.becameMain };
+  }
+  const exp = techniques.addDepthExp(character, payload.name, 30);
+  if (exp.gained > 0) {
+    db.prepare("UPDATE xianxia_characters SET learned_techniques = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(JSON.stringify(exp.list), characterId);
+    return { learned: false, dupExp: exp.gained };
+  }
+  return { learned: false };
+}
+
+/** 历史 bug 清理：旧版 claimGift 曾把功法错存为行囊物品（technique 物品行只应是全局模板），删除角色行囊中的残留 */
+function deleteStrayTechniqueItem(characterId, name) {
+  db.prepare("DELETE FROM xianxia_items WHERE character_id = ? AND name = ? AND item_type = 'technique'")
+    .run(characterId, name);
+}
+
 function claimGift(characterId, messageId) {
   const msg = db.prepare(
     `SELECT m.*, t.character_id FROM xianxia_jade_messages m
@@ -349,15 +380,30 @@ function claimGift(characterId, messageId) {
   if (!msg || msg.character_id !== characterId) return { error: '消息不存在', status: 404 };
   const payload = parsePayload(msg.item_payload);
   if (!payload) return { error: '该消息没有附带赠礼', status: 400 };
-  if (payload.claimed) return { error: '赠礼已领取', status: 400 };
 
-  // 物品入库（功法带 effect/metadata 原文；丹药/材料/法宝同构）
-  db.prepare(
-    `INSERT INTO xianxia_items (character_id, name, item_type, grade, description, slot, attack, defense, effect, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(characterId, payload.name, payload.item_type || 'misc', payload.grade || '凡品',
-    payload.description || null, null, null, null, payload.effect || null,
-    payload.metadata || null);
+  // 已领取的功法礼物：走历史 bug 修复通道——补学功法并清理错存的行囊物品
+  if (payload.claimed) {
+    if (payload.item_type !== 'technique') return { error: '赠礼已领取', status: 400 };
+    const rep = learnTechniqueGift(characterId, payload);
+    deleteStrayTechniqueItem(characterId, payload.name);
+    if (rep.learned) return { ok: true, itemName: payload.name, learned: true, repaired: true };
+    if (rep.dupExp) return { ok: true, itemName: payload.name, dupExp: rep.dupExp, repaired: true };
+    return { error: '赠礼已领取', status: 400 };
+  }
+
+  // 功法礼物：学会（写入 learned_techniques）；其余类型：物品入库
+  let learnResult = null;
+  if (payload.item_type === 'technique') {
+    learnResult = learnTechniqueGift(characterId, payload);
+    deleteStrayTechniqueItem(characterId, payload.name);
+  } else {
+    db.prepare(
+      `INSERT INTO xianxia_items (character_id, name, item_type, grade, description, slot, attack, defense, effect, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(characterId, payload.name, payload.item_type || 'misc', payload.grade || '凡品',
+      payload.description || null, null, null, null, payload.effect || null,
+      payload.metadata || null);
+  }
 
   payload.claimed = true;
   db.prepare('UPDATE xianxia_jade_messages SET item_payload = ? WHERE id = ?')
@@ -365,13 +411,20 @@ function claimGift(characterId, messageId) {
 
   const character = db.prepare('SELECT game_age FROM xianxia_characters WHERE id = ?').get(characterId);
   const gameTime = xianxiaLLM.formatGameAge(character ? character.game_age : 0);
+  const gainText = learnResult
+    ? (learnResult.learned ? `习得功法《${payload.name}》` : `《${payload.name}》领悟加深 +${learnResult.dupExp || 0}`)
+    : `获得 ${payload.name}`;
+  const narrative = learnResult
+    ? (learnResult.learned
+      ? `你从传讯玉符中领取了功法传承——《${payload.name}》（${payload.grade}）的要诀已了然于胸。`
+      : `《${payload.name}》你早已习得，此番重温传承，领悟又深了几分。`)
+    : `你从传讯玉符中领取了「${payload.name}」（${payload.grade}）。`;
   db.prepare(
     'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative, rewards) VALUES (?, ?, ?, ?, ?)'
-  ).run(characterId, gameTime, 'jade_gift',
-    `你从传讯玉符中领取了「${payload.name}」（${payload.grade}）。`,
-    JSON.stringify([{ text: `获得 ${payload.name}`, tone: 'gain' }]));
+  ).run(characterId, gameTime, 'jade_gift', narrative,
+    JSON.stringify([{ text: gainText, tone: 'gain' }]));
 
-  return { ok: true, itemName: payload.name };
+  return { ok: true, itemName: payload.name, learned: !!(learnResult && learnResult.learned), dupExp: learnResult ? learnResult.dupExp : undefined };
 }
 
 module.exports = {

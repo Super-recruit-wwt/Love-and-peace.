@@ -29,6 +29,7 @@ export default function JadePage() {
   const [sending, setSending] = useState(false);
   const [claiming, setClaiming] = useState(null); // messageId
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState(''); // 领取成功等正向反馈
   const [loading, setLoading] = useState(true);
   const [knownNpcs, setKnownNpcs] = useState([]); // 已有关系的 NPC（发起新会话用）
   const [newChatNpcId, setNewChatNpcId] = useState('');
@@ -112,11 +113,15 @@ export default function JadePage() {
   async function claimGift(msg) {
     if (claiming) return;
     setClaiming(msg.id);
+    setNotice('');
     try {
-      await api.post(`/xianxia/characters/${characterId}/jade/claim`, { messageId: msg.id });
+      const res = await api.post(`/xianxia/characters/${characterId}/jade/claim`, { messageId: msg.id });
       setMessages(prev => prev.map(m =>
         m.id === msg.id ? { ...m, item_payload: { ...m.item_payload, claimed: true } } : m
       ));
+      if (res.learned) setNotice(`已习得功法《${res.itemName}》，可在详情页功法栏查看。`);
+      else if (res.dupExp) setNotice(`《${res.itemName}》早已习得，领悟加深 +${res.dupExp}。`);
+      else setNotice(`已获得「${res.itemName}」，已放入行囊。`);
     } catch (e) {
       setError(e.message);
     }
@@ -137,6 +142,7 @@ export default function JadePage() {
       </div>
 
       {error && <div className="x-jade-error">{error}</div>}
+      {notice && <div className="x-jade-notice" onClick={() => setNotice('')}>{notice}</div>}
 
       <div className="x-jade-layout">
         {/* 左栏：会话列表 */}

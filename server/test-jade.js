@@ -42,8 +42,8 @@ async function run(check) {
     check('玩家消息内容原样保存', msgs[0].content === '道友近来可好？');
     check('在线回复不计未读', thread.unread_player === 0);
 
-    // ---- forceGift 回复：item_payload 结构 ----
-    const giftSend = await jade.sendPlayerMessage(charId, npcId, '多谢道友挂念。', { forceGift: true });
+    // ---- forceGift 回复：item_payload 结构（强制丹药，保证物品入库断言稳定）----
+    const giftSend = await jade.sendPlayerMessage(charId, npcId, '多谢道友挂念。', { forceGift: true, forceType: 'pill' });
     const payload = giftSend.reply.item_payload;
     check('附礼回复带 item_payload', !!(payload && payload.name));
     check('赠品品级在凡/灵/宝之内', !!payload && ['凡品', '灵品', '宝品'].includes(payload.grade));
@@ -66,6 +66,28 @@ async function run(check) {
     const tl1 = db.prepare("SELECT * FROM xianxia_timeline WHERE character_id = ? AND event_type = 'jade_gift'").all(charId);
     check('领取写入 jade_gift 时间线（含 rewards）',
       tl1.length >= 1 && tl1.some(e => (e.rewards || '').includes('获得')));
+
+    // ---- 功法礼物：领取即学会（写入 learned_techniques），不产生行囊物品 ----
+    const techSend = await jade.sendPlayerMessage(charId, npcId, '听闻道友得了一卷功法？', { forceGift: true, forceType: 'technique' });
+    const techPayload = techSend.reply.item_payload;
+    check('功法礼物类型正确', !!techPayload && techPayload.item_type === 'technique');
+    const techItemsBefore = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id = ? AND item_type = 'technique'").get(charId).c;
+    const techClaim = jade.claimGift(charId, techSend.reply.id);
+    check('功法领取返回 learned', techClaim.ok === true && techClaim.learned === true);
+    const learnedRow = db.prepare('SELECT learned_techniques FROM xianxia_characters WHERE id = ?').get(charId);
+    const learnedList = JSON.parse(learnedRow.learned_techniques || '[]');
+    check('功法写入 learned_techniques', learnedList.some(e => e.name === techPayload.name));
+    const techItemsAfter = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id = ? AND item_type = 'technique'").get(charId).c;
+    check('功法不产生行囊物品', techItemsAfter === techItemsBefore);
+
+    // ---- 已领取的功法礼物再点一次：修复通道——已学者转为深度经验，并清理错存残留 ----
+    db.prepare("INSERT INTO xianxia_items (character_id, name, item_type, grade) VALUES (?, ?, 'technique', '凡品')")
+      .run(charId, techPayload.name); // 模拟历史 bug 错存的残留物品
+    const repair = jade.claimGift(charId, techSend.reply.id);
+    check('修复通道返回 ok + dupExp', repair.ok === true && repair.repaired === true && repair.dupExp > 0);
+    const strayLeft = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id = ? AND item_type = 'technique' AND name = ?")
+      .get(charId, techPayload.name).c;
+    check('错存残留已清理', strayLeft === 0);
 
     // ---- maybeProactiveMessage：force 必中 + 未读 +1 ----
     const pro = await jade.maybeProactiveMessage({ id: charId, status: 'active', game_age: 16 }, { force: true });
