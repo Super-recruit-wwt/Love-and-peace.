@@ -2,7 +2,7 @@
 
 const { db } = require('../db');
 const { formatGameAge } = require('./llm');
-const { qiMaxForStage, prevXianStageWithinRealm, bigRealmOf, cultivationTier, parseJson, withBreakthroughOption, effStat, consumeBuffs } = require('./scripts/utils');
+const { qiMaxForStage, bigRealmOf, cultivationTier, parseJson, withBreakthroughOption, effStat, consumeBuffs } = require('./scripts/utils');
 const techniques = require('./techniques');
 
 const ri = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
@@ -188,7 +188,7 @@ async function completeBreakthrough(characterId) {
       }
     }
 
-    // 修为上限随境界成长（突破成功升上限 / 重伤跌落降上限，当前修为不超过新上限）
+    // 修为上限随境界成长（突破成功升上限，当前修为不超过新上限）
     if (results.newQiMax) {
       db.prepare(
         "UPDATE xianxia_characters SET qi_max = ?, qi_current = MIN(qi_current, ?), updated_at = datetime('now') WHERE id = ?"
@@ -305,7 +305,7 @@ function resolveBreakthroughResult(character, timerType) {
       if (r.levelUps.length > 0) {
         const label = techniques.DEPTH_LABELS[r.levelUps[r.levelUps.length - 1]];
         results.narrative += ` 壁障前后的生死体悟让你对《${main.name}》的理解豁然贯通——${label}！`;
-        // 深度提升放大功法倍率：按突破后境界与新深度重算气海上限（覆盖成功/跌境路径的旧值）
+        // 深度提升放大功法倍率：按突破后境界与新深度重算气海上限（覆盖成功路径的旧值）
         const stageAfter = (results.newCultivation && results.newCultivation.xiandao) || fromStage;
         results.newQiMax = Math.round(qiMaxForStage(stageAfter) * techniques.qiMaxMult({ ...character, learned_techniques: JSON.stringify(r.list) }));
       }
@@ -415,22 +415,17 @@ function resolveBreakthroughResult(character, timerType) {
     }, 5);
   }
 
-  // 重伤：跌落一个小境界（已是初期则修为散逸）；丹药护体、精足者概率降低
+  // 重伤：境界不跌落，唯修为散尽（冲击时气海已耗空），需从头积累；丹药护体、精足者概率降低
   let heavyP = 0.35;
   if (pillUsed) heavyP *= 0.6;
   if (essence >= 60) heavyP *= 0.8;
   if (tierRoll < devilP + heavyP) {
-    const prevStage = prevXianStageWithinRealm(fromStage);
     return withDepthExp({
       success: false,
       failTier: '重伤',
-      narrative: pillPrefix + (prevStage
-        ? `壁障的反噬如山洪倒灌，你喷出一口鲜血，体内灵力如潮水般退散——境界竟从${fromStage}跌落回${prevStage}。（${failReason}，重伤）`
-        : `壁障的反噬如山洪倒灌，你喷出一口鲜血，修为散逸大半，境界摇摇欲坠，险些跌落。（${failReason}，重伤）`),
+      narrative: `${pillPrefix}壁障的反噬如山洪倒灌，你喷出一口鲜血，体内灵力如潮水般退散——辛苦积累的修为溃散一空，境界仍是${fromStage}，只待伤愈后从头积累。（${failReason}，重伤）`,
       healthChange: -ri(40, 50),
       bodyStatus: '重伤：经脉寸断般剧痛，需静养多日方可恢复',
-      newCultivation: prevStage ? { ...cultivation, xiandao: prevStage } : null,
-      newQiMax: prevStage ? Math.round(qiMaxForStage(prevStage) * techniques.qiMaxMult(character)) : null,
     }, 5);
   }
 

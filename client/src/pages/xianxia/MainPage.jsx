@@ -684,7 +684,7 @@ export default function MainPage() {
                       {item.name}{item.quantity > 1 ? ' ×' + item.quantity : ''}
                       <span className="x-item-grade" style={{fontSize:'9px',color:'var(--color-ink-3)',marginLeft:'4px'}}>{item.grade || ''}</span>
                     </span>
-                    {item.item_type === 'pill' || item.item_type === 'material' || item.item_type === 'talisman' ? (
+                    {item.item_type === 'pill' || item.item_type === 'material' || item.item_type === 'talisman' || item.item_type === 'technique' ? (
                       <button className="btn-outline btn-sm x-use-btn" style={{fontSize:'10px',padding:'2px 8px',position:'relative'}}
                         onMouseEnter={function(e) { var r = e.currentTarget.getBoundingClientRect(); fetchItemKnowledge(item.id, function(k) { setHoveredItem(Object.assign({}, k, { rect: r })); }); }}
                         onMouseLeave={function() { setHoveredItem(null); }}
@@ -703,14 +703,15 @@ export default function MainPage() {
                           try {
                             var res = await api.post('/xianxia/characters/' + characterId + '/use-item', { itemId: item.id });
                             var effects = (res.effectsText && res.effectsText.length > 0) ? '：' + res.effectsText.join('，') : '';
-                            setItemUseMsg({ ok: true, text: '使用【' + item.name + '】' + effects });
+                            var verb = item.item_type === 'technique' ? '参悟' : '使用';
+                            setItemUseMsg({ ok: true, text: verb + '【' + item.name + '】' + effects });
                             await loadCharacter();
                           } catch(e) {
                             setItemUseMsg({ ok: false, text: e.message || '使用失败' });
                             await loadCharacter(); // 回滚乐观更新
                           }
                         }}
-                      >使用</button>
+                      >{item.item_type === 'technique' ? '参悟' : '使用'}</button>
                     ) : (
                       <span className="x-row-sub" style={{fontSize:'10px'}}>{item.grade}</span>
                     )}

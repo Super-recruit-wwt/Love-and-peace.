@@ -681,6 +681,66 @@ function weightedRandom(values, weights) {
 
 // ==================== 物品使用 API ====================
 
+/** 使用功法秘籍：参悟习得（校验修习门槛）；已习得者重温，化为 30 点深度经验 */
+function useTechniqueItem(req, res, character, item) {
+  const learnR = techniques.learnTechnique(character, item.name); // 默认校验修习门槛
+  if (!learnR.learned && learnR.reason === 'req_unmet') {
+    return res.status(400).json({ error: `你翻开《${item.name}》，只觉字字晦涩、气机滞涩——修为根骨尚不足以参悟此功，还是日后再来吧。` });
+  }
+
+  let techText;
+  let afterList;
+  if (learnR.learned) {
+    afterList = learnR.list;
+    techText = `习得功法《${item.name}》${learnR.becameMain ? '（已列为该类型主修）' : ''}`;
+  } else {
+    const exp = techniques.addDepthExp(character, item.name, 30);
+    afterList = exp.list;
+    techText = exp.gained > 0
+      ? `《${item.name}》你早已习得，此番重温秘籍，领悟加深 +${exp.gained}`
+      : `《${item.name}》你已参悟透彻，此卷于你再无新意`;
+  }
+
+  const applyTech = db.transaction(() => {
+    db.prepare("UPDATE xianxia_characters SET learned_techniques = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(JSON.stringify(afterList), character.id);
+    if (item.quantity > 1) {
+      db.prepare('UPDATE xianxia_items SET quantity = quantity - 1 WHERE id = ?').run(item.id);
+    } else {
+      db.prepare('DELETE FROM xianxia_items WHERE id = ?').run(item.id);
+    }
+    db.prepare(
+      'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative, rewards) VALUES (?, ?, ?, ?, ?)'
+    ).run(character.id, xianxiaLLM.formatGameAge(character.game_age || 0), 'technique',
+      learnR.learned
+        ? `你取出秘籍《${item.name}》，闭门参悟数日，个中要诀终于了然于胸。`
+        : `你又翻出《${item.name}》重温了一遍，对已习得的心法又多了几分体悟。`,
+      JSON.stringify([{ text: techText, tone: 'gain' }]));
+  });
+  applyTech();
+
+  // 深度经验带来的三元滋养结算（取单功法最大值之差额入账）
+  let grantText = '';
+  try {
+    const grants = techniques.applyDepthStatGrants(
+      character.id, character.learned_techniques, JSON.stringify(afterList));
+    if (grants) {
+      const L = { essence: '精', qi: '气', spirit: '神' };
+      grantText = '，' + ['essence', 'qi', 'spirit'].filter(s => grants[s]).map(s => `${L[s]} +${grants[s]}`).join('、');
+    }
+  } catch (e) {
+    console.error('[useTechniqueItem] 三元结算失败（不影响主流程）:', e.message);
+  }
+
+  const updated = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(character.id);
+  res.json({
+    deltas: {},
+    effectsText: [techText + grantText],
+    character: updated,
+    learnedTechnique: learnR.learned ? item.name : undefined,
+  });
+}
+
 /** POST /api/xianxia/characters/:id/use-item — 使用背包中的物品 */
 async function useItem(req, res) {
   const character = db.prepare('SELECT * FROM xianxia_characters WHERE id = ? AND user_id = ?')
@@ -695,6 +755,10 @@ async function useItem(req, res) {
   if (!item) return res.status(404).json({ error: '物品不存在或不属于此角色' });
 
   const type = item.item_type;
+
+  // 功法秘籍：使用即参悟（独立流程，未习得校验门槛 / 已习得化深度经验）
+  if (type === 'technique') return useTechniqueItem(req, res, character, item);
+
   const effect = JSON.parse(item.effect || '{}');
   const rawEffect = JSON.parse(item.raw_effect || '{}');
 

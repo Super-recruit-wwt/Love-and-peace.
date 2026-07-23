@@ -560,9 +560,7 @@ console.log('\n[15] 邪修路线');
   for (let i = 0; i < 200 && !blackScroll; i++) {
     const out = trade.resolve(blackMarketChar, { mode: 'buy' });
     if (out.renderParams && out.renderParams.outcome === 'bought_scroll') {
-      blackScroll = out;
-      // 已习得则写回，避免下次抽到同一部
-      if (out.sets && out.sets.learned_techniques) blackMarketChar.learned_techniques = out.sets.learned_techniques;
+      blackScroll = out; // 秘籍现为物品入背包（使用后才习得），无需写回 learned_techniques
     }
   }
   check('黑水港可购功法残页', !!blackScroll);
@@ -835,6 +833,56 @@ let pillTestDone = Promise.resolve();
     } finally {
       db.prepare('DELETE FROM xianxia_characters WHERE id = ?').run(charId);
       db.prepare('DELETE FROM users WHERE id = ?').run(user.lastInsertRowid);
+    }
+
+    // 功法秘籍：使用即参悟——未学者习得 / 已学者化深度经验 / 门槛不足拦截且不消耗
+    const user2 = db.prepare('INSERT INTO users (email, password_hash, nickname) VALUES (?, ?, ?)')
+      .run(`tech_item_${Date.now()}@example.com`, 'x', '秘籍测试');
+    const char2 = db.prepare(
+      'INSERT INTO xianxia_characters (user_id, name, gender, spirit_roots, special_body, birth_region, birth_background, learned_techniques) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(user2.lastInsertRowid, '参悟人', 'male', '{}', null, '中州', '猎户', '[]');
+    const charId2 = char2.lastInsertRowid;
+    try {
+      // 未习得：参悟习得，秘籍消耗，写入时间线
+      const it1 = db.prepare(
+        "INSERT INTO xianxia_items (character_id, name, item_type, grade, quantity) VALUES (?, '吐纳基础', 'technique', '凡品', 1)"
+      ).run(charId2);
+      const res1 = mkRes();
+      xianxia.useItem({ params: { id: charId2 }, userId: user2.lastInsertRowid, body: { itemId: it1.lastInsertRowid } }, res1);
+      check('参悟秘籍：习得功法', !!(res1.body && res1.body.learnedTechnique === '吐纳基础'), JSON.stringify(res1.body && (res1.body.error || res1.body.effectsText)));
+      const lRow = db.prepare('SELECT learned_techniques FROM xianxia_characters WHERE id = ?').get(charId2);
+      check('参悟后写入 learned_techniques', JSON.parse(lRow.learned_techniques || '[]').some(e => e.name === '吐纳基础'));
+      check('参悟后秘籍已消耗', !db.prepare('SELECT id FROM xianxia_items WHERE id = ?').get(it1.lastInsertRowid));
+      const techTl = db.prepare("SELECT * FROM xianxia_timeline WHERE character_id = ? AND event_type = 'technique'").all(charId2);
+      check('参悟写入时间线（含习得 rewards）',
+        techTl.length === 1 && (techTl[0].rewards || '').includes('习得'));
+
+      // 已习得：重温化为深度经验，秘籍照样消耗
+      const it2 = db.prepare(
+        "INSERT INTO xianxia_items (character_id, name, item_type, grade, quantity) VALUES (?, '吐纳基础', 'technique', '凡品', 1)"
+      ).run(charId2);
+      const res2 = mkRes();
+      xianxia.useItem({ params: { id: charId2 }, userId: user2.lastInsertRowid, body: { itemId: it2.lastInsertRowid } }, res2);
+      check('重温秘籍：领悟加深 +30',
+        !!(res2.body && !res2.body.learnedTechnique && (res2.body.effectsText || []).join('').includes('领悟加深')),
+        JSON.stringify(res2.body && (res2.body.error || res2.body.effectsText)));
+      check('重温后秘籍已消耗', !db.prepare('SELECT id FROM xianxia_items WHERE id = ?').get(it2.lastInsertRowid));
+
+      // 门槛不足（金刚筑基功 需精≥50，新角色 40）：400 且秘籍保留
+      const it3 = db.prepare(
+        "INSERT INTO xianxia_items (character_id, name, item_type, grade, quantity) VALUES (?, '金刚筑基功', 'technique', '灵品', 1)"
+      ).run(charId2);
+      const res3 = mkRes();
+      xianxia.useItem({ params: { id: charId2 }, userId: user2.lastInsertRowid, body: { itemId: it3.lastInsertRowid } }, res3);
+      check('门槛不足被拒（400）', res3.code === 400, `code=${res3.code}`);
+      check('门槛不足秘籍保留', !!db.prepare('SELECT id FROM xianxia_items WHERE id = ?').get(it3.lastInsertRowid));
+      const lRow3 = db.prepare('SELECT learned_techniques FROM xianxia_characters WHERE id = ?').get(charId2);
+      check('门槛不足未习得', !JSON.parse(lRow3.learned_techniques || '[]').some(e => e.name === '金刚筑基功'));
+    } finally {
+      db.prepare('DELETE FROM xianxia_timeline WHERE character_id = ?').run(charId2);
+      db.prepare('DELETE FROM xianxia_items WHERE character_id = ?').run(charId2);
+      db.prepare('DELETE FROM xianxia_characters WHERE id = ?').run(charId2);
+      db.prepare('DELETE FROM users WHERE id = ?').run(user2.lastInsertRowid);
     }
   })();
 }

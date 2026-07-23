@@ -96,7 +96,7 @@ module.exports = {
         };
       }
 
-      // 功法残页：习得随机未学术法/身法/秘术；已无可学时摊主退款改推杂货
+      // 功法残页：购得秘籍物品入背包（使用后方可参悟习得）；已无可学时摊主退款改推杂货
       // 黑水港黑市：默许邪修功法流通，且优先抽邪修残页
       if (item.scroll) {
         const isBlackMarket = (character.current_location || '').includes('黑水港');
@@ -113,19 +113,20 @@ module.exports = {
           });
         }
         if (art) {
-          const { list, learned } = techniques.learnTechnique(character, art.name, { makeMain: false });
-          if (learned) {
-            const typeLabel = { spell: '术法', movement: '身法', secret: '秘术' }[art.type] || '功法';
-            return {
-              deltas: { spirit_stones: -finalPrice },
-              sets: { learned_techniques: JSON.stringify(list) },
-              extraRewards: [{ text: `习得《${art.name}》`, tone: 'gain' }],
-              elapsedDays: 0.5,
-              resultText: `你花 ${finalPrice} 灵石从一游商手中买下一卷残页，抖开一看——竟是${art.grade}${typeLabel}《${art.name}》！摊主嘿嘿一笑："货已离手，是宝是废纸，全看客官造化。"`,
-              renderParams: { outcome: 'bought_scroll', technique: art.name, grade: art.grade, price: finalPrice },
-              options: ['闭关参悟新功法', '再去别处逛逛', '离开坊市'],
-            };
-          }
+          const typeLabel = { spell: '术法', movement: '身法', secret: '秘术', heart: '心法' }[art.type] || '功法';
+          return {
+            deltas: { spirit_stones: -finalPrice },
+            items: [{
+              name: art.name, item_type: 'technique', grade: art.grade,
+              effect: JSON.stringify(art.effect || {}),
+              metadata: JSON.stringify({ type: art.type || 'heart' }),
+            }],
+            extraRewards: [{ text: `获得《${art.name}》秘籍`, tone: 'gain' }],
+            elapsedDays: 0.5,
+            resultText: `你花 ${finalPrice} 灵石从一游商手中买下一卷残页，抖开一看——竟是${art.grade}${typeLabel}《${art.name}》！摊主嘿嘿一笑："货已离手，是宝是废纸，全看客官造化。"秘籍已放入行囊，回去细细参悟（使用）后方可习得。`,
+            renderParams: { outcome: 'bought_scroll', technique: art.name, grade: art.grade, price: finalPrice },
+            options: ['回去参悟新得的秘籍', '再去别处逛逛', '离开坊市'],
+          };
         }
         // 池子已空：改买一件杂货兜底
         const fallback = pick(BUYABLES);

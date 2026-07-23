@@ -67,27 +67,28 @@ async function run(check) {
     check('领取写入 jade_gift 时间线（含 rewards）',
       tl1.length >= 1 && tl1.some(e => (e.rewards || '').includes('获得')));
 
-    // ---- 功法礼物：领取即学会（写入 learned_techniques），不产生行囊物品 ----
+    // ---- 功法礼物：领取入背包（秘籍物品，使用后方可习得），不直接学会 ----
     const techSend = await jade.sendPlayerMessage(charId, npcId, '听闻道友得了一卷功法？', { forceGift: true, forceType: 'technique' });
     const techPayload = techSend.reply.item_payload;
     check('功法礼物类型正确', !!techPayload && techPayload.item_type === 'technique');
     const techItemsBefore = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id = ? AND item_type = 'technique'").get(charId).c;
     const techClaim = jade.claimGift(charId, techSend.reply.id);
-    check('功法领取返回 learned', techClaim.ok === true && techClaim.learned === true);
-    const learnedRow = db.prepare('SELECT learned_techniques FROM xianxia_characters WHERE id = ?').get(charId);
-    const learnedList = JSON.parse(learnedRow.learned_techniques || '[]');
-    check('功法写入 learned_techniques', learnedList.some(e => e.name === techPayload.name));
+    check('功法领取成功', techClaim.ok === true && techClaim.itemName === techPayload.name);
     const techItemsAfter = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id = ? AND item_type = 'technique'").get(charId).c;
-    check('功法不产生行囊物品', techItemsAfter === techItemsBefore);
+    check('秘籍物品入背包 +1', techItemsAfter === techItemsBefore + 1);
+    const learnedRow = db.prepare('SELECT learned_techniques FROM xianxia_characters WHERE id = ?').get(charId);
+    check('领取不直接学会', !JSON.parse(learnedRow.learned_techniques || '[]').some(e => e.name === techPayload.name));
 
-    // ---- 已领取的功法礼物再点一次：修复通道——已学者转为深度经验，并清理错存残留 ----
-    db.prepare("INSERT INTO xianxia_items (character_id, name, item_type, grade) VALUES (?, ?, 'technique', '凡品')")
-      .run(charId, techPayload.name); // 模拟历史 bug 错存的残留物品
+    // ---- 已领取的功法礼物：秘籍在背包 → 400 提示去参悟；秘籍丢失 → 修复通道补发 ----
+    const dupClaim = jade.claimGift(charId, techSend.reply.id);
+    check('秘籍在背包时重复领取返回 400', !!dupClaim.error && dupClaim.status === 400);
+    db.prepare("DELETE FROM xianxia_items WHERE character_id = ? AND item_type = 'technique' AND name = ?")
+      .run(charId, techPayload.name); // 模拟秘籍丢失（旧版误吞）
     const repair = jade.claimGift(charId, techSend.reply.id);
-    check('修复通道返回 ok + dupExp', repair.ok === true && repair.repaired === true && repair.dupExp > 0);
-    const strayLeft = db.prepare("SELECT COUNT(*) c FROM xianxia_items WHERE character_id = ? AND item_type = 'technique' AND name = ?")
-      .get(charId, techPayload.name).c;
-    check('错存残留已清理', strayLeft === 0);
+    check('丢失秘籍可经修复通道补发', repair.ok === true && repair.repaired === true);
+    const restored = db.prepare("SELECT id FROM xianxia_items WHERE character_id = ? AND item_type = 'technique' AND name = ?")
+      .get(charId, techPayload.name);
+    check('补发秘籍入背包', !!restored);
 
     // ---- maybeProactiveMessage：force 必中 + 未读 +1 ----
     const pro = await jade.maybeProactiveMessage({ id: charId, status: 'active', game_age: 16 }, { force: true });
