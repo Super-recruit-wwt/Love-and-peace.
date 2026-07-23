@@ -26,11 +26,13 @@ function cultivationTier(character) {
   return 0;
 }
 
-/** 综合战力（用于切磋判定） */
+/** 综合战力（用于切磋判定，含精气神修正） */
 function power(character) {
+  const essence = character.essence || 40;
+  const spiritVal = character.spirit || 30;
   return cultivationTier(character) * 100
     + (character.qi_current || 0) * 0.5
-    + (character.health || 100) * 0.3
+    + essence * 0.4
     + (character.dao_heart || 50) * 0.2;
 }
 
@@ -85,4 +87,59 @@ function isValidLocation(loc) {
   return LOCATION_SUFFIX.test(loc);
 }
 
-module.exports = { parseJson, avgRoot, cultivationTier, power, regionOf, rand, randf, pick, parseDurationDays, CN_NUM, isValidLocation };
+/** 仙道境界全序列（与 breakthrough.js 保持一致） */
+const XIAN_STAGES = ['炼气初期', '炼气中期', '炼气后期', '炼气圆满',
+  '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
+  '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
+  '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
+  '化神初期', '化神中期', '化神后期', '化神圆满',
+  '炼虚初期', '炼虚中期', '炼虚后期', '炼虚圆满',
+  '合体初期', '合体中期', '合体后期', '合体圆满',
+  '大乘初期', '大乘中期', '大乘后期', '大乘圆满',
+  '渡劫初期', '渡劫中期', '渡劫后期', '渡劫圆满',
+  '飞升'];
+
+/** 各大境界的修为上限基数 */
+const BIG_REALM_BASE_QI = {
+  '炼气': 100, '筑基': 250, '金丹': 600, '元婴': 1500, '化神': 4000,
+  '炼虚': 10000, '合体': 25000, '大乘': 60000, '渡劫': 150000, '飞升': 300000,
+};
+
+/** 大境界名（去掉 初期/中期/后期/圆满 后缀） */
+function bigRealmOf(stage) {
+  return (stage || '').replace(/(初期|中期|后期|圆满)$/, '');
+}
+
+/** 小境界序号：初期=0 中期=1 后期=2 圆满=3（飞升=0） */
+function subStageIndex(stage) {
+  if (!stage) return 0;
+  if (stage.endsWith('中期')) return 1;
+  if (stage.endsWith('后期')) return 2;
+  if (stage.endsWith('圆满')) return 3;
+  return 0;
+}
+
+/** 修为上限随境界成长：大境界基数 × (1 + 0.25 × 小境界序号) */
+function qiMaxForStage(stage) {
+  const base = BIG_REALM_BASE_QI[bigRealmOf(stage)] || 100;
+  return Math.round(base * (1 + 0.25 * subStageIndex(stage)));
+}
+
+/** 下一仙道境界（不存在则返回当前值） */
+function nextXianStage(current) {
+  if (!current) return '炼气初期';
+  const idx = XIAN_STAGES.indexOf(current);
+  if (idx >= 0 && idx < XIAN_STAGES.length - 1) return XIAN_STAGES[idx + 1];
+  return current;
+}
+
+/** 同大境界内退一阶（如 金丹后期→金丹中期）；已是初期则返回 null */
+function prevXianStageWithinRealm(current) {
+  if (!current) return null;
+  const idx = XIAN_STAGES.indexOf(current);
+  if (idx <= 0) return null;
+  const prev = XIAN_STAGES[idx - 1];
+  return bigRealmOf(prev) === bigRealmOf(current) ? prev : null;
+}
+
+module.exports = { parseJson, avgRoot, cultivationTier, power, regionOf, rand, randf, pick, parseDurationDays, CN_NUM, isValidLocation, XIAN_STAGES, BIG_REALM_BASE_QI, bigRealmOf, subStageIndex, qiMaxForStage, nextXianStage, prevXianStageWithinRealm };

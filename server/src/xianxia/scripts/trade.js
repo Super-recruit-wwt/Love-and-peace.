@@ -3,10 +3,10 @@ const { db } = require('../../db');
 const { rand, pick } = require('./utils');
 
 const BUYABLES = [
-  { name: '回气丹', item_type: 'pill', grade: '凡品', price: 30 },
-  { name: '轻身符', item_type: 'misc', grade: '凡品', price: 20 },
-  { name: '精铁剑', item_type: 'treasure', grade: '凡品', price: 50 },
-  { name: '养气散', item_type: 'pill', grade: '凡品', price: 15 },
+  { name: '回气丹', item_type: 'pill', grade: '凡品', price: 30, effect: { qi_current: 20 } },
+  { name: '轻身符', item_type: 'talisman', grade: '凡品', price: 20, effect: { travel_speed: 0.6 } },
+  { name: '精铁剑', item_type: 'weapon', grade: '凡品', price: 50, slot: 'weapon', attack: 8 },
+  { name: '养气散', item_type: 'pill', grade: '凡品', price: 15, effect: { qi_current: 10 } },
 ];
 
 module.exports = {
@@ -22,7 +22,10 @@ module.exports = {
   },
 
   resolve(character, { mode }) {
-    const fameMod = 1 + (character.fame || 0) / 200; // 名望抬价
+    const fameMod = 1 + (character.fame || 0) / 200;
+    const spiritVal = character.spirit || 30;
+    const essence = character.essence || 40;
+  const qiVal = character.qi || 40;
 
     if (mode === 'leave') {
       return {
@@ -59,31 +62,42 @@ module.exports = {
 
     if (mode === 'buy') {
       const item = pick(BUYABLES);
-      const price = Math.max(1, Math.round(item.price * (2 - Math.min(fameMod, 1.25)))); // 名望高者享折扣
-      if ((character.spirit_stones || 0) < price) {
+      const price = Math.max(1, Math.round(item.price * (2 - Math.min(fameMod, 1.25))));
+      // 神高→讲价优惠
+      let finalPrice = price;
+      if (spiritVal >= 80) finalPrice = Math.max(1, Math.round(price * (1 - spiritVal / 400)));
+  if (qiVal >= 80) finalPrice = Math.max(1, Math.round(finalPrice * (1 - qiVal / 400))); // 气高→灵力亲和，议价更易
+      if ((character.spirit_stones || 0) < finalPrice) {
         return {
           deltas: {}, elapsedDays: 0.5,
-          resultText: `你看中了${item.name}，摊主开价 ${price} 灵石——但你囊中羞涩，只能悻悻作罢。`,
-          renderParams: { outcome: 'cant_afford', itemName: item.name, price },
+          resultText: `你看中了${item.name}，摊主开价 ${finalPrice} 灵石——但你囊中羞涩，只能悻悻作罢。`,
+          renderParams: { outcome: 'cant_afford', itemName: item.name, price: finalPrice },
           options: ['去卖些材料换钱', '看看别的摊位', '离开坊市'],
         };
       }
       return {
-        deltas: { spirit_stones: -price },
-        items: [{ name: item.name, item_type: item.item_type, grade: item.grade }],
+        deltas: { spirit_stones: -finalPrice },
+        items: [{
+          name: item.name, item_type: item.item_type, grade: item.grade,
+          slot: item.slot || null, attack: item.attack || null, defense: item.defense || null,
+          effect: item.effect ? JSON.stringify(item.effect) : null,
+        }],
         elapsedDays: 0.5,
-        resultText: `你花 ${price} 灵石买下了${item.name}。摊主笑呵呵地送你出了摊位。`,
-        renderParams: { outcome: 'bought', itemName: item.name, price },
+        resultText: `你花 ${finalPrice} 灵石买下了${item.name}。摊主笑呵呵地送你出了摊位。`,
+        renderParams: { outcome: 'bought', itemName: item.name, price: finalPrice },
         options: ['再去别处逛逛', '出售一些材料', '离开坊市'],
       };
     }
 
     // browse
+    // 精高→多一个搬运打工option
+    const browseOptions = ['出售材料', '购买补给', '离开坊市'];
+    if (essence >= 80) browseOptions.splice(1, 0, '搬运重货打工——体力换灵石');
     return {
       deltas: {}, elapsedDays: 0.5,
       resultText: '你在坊市里逛了一圈：丹药、符箓、法器琳琅满目，吆喝声此起彼伏。',
       renderParams: { outcome: 'browse' },
-      options: ['出售材料', '购买补给', '离开坊市'],
+      options: browseOptions,
     };
   },
 };

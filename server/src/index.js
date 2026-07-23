@@ -971,6 +971,7 @@ seedSampleDiscussions();
 // 修仙模块：初始化世界状态与固定 NPC（幂等，已有数据则跳过）
 try {
   require('./xianxia/world').seedAll();
+  require('./xianxia/seeds').seedAll();
 } catch (err) {
   console.error('修仙世界初始化失败:', err);
 }
@@ -994,6 +995,12 @@ app.post('/api/xianxia/characters/:id/action', authMiddleware, xianxia.processAc
 app.post('/api/xianxia/characters/:id/settle', authMiddleware, xianxia.settleTimer);
 app.post('/api/xianxia/characters/:id/birth-narrative', authMiddleware, xianxia.birthNarrative);
 app.get('/api/xianxia/characters/:id/export', authMiddleware, xianxia.exportMD);
+app.post('/api/xianxia/characters/:id/use-item', authMiddleware, xianxia.useItem);
+app.post('/api/xianxia/characters/:id/equip', authMiddleware, xianxia.equipItem);
+app.post('/api/xianxia/characters/:id/unequip', authMiddleware, xianxia.unequipItem);
+app.get('/api/xianxia/characters/:id/discover-locations', authMiddleware, xianxia.refreshDiscoveredLocations);
+app.post('/api/xianxia/characters/:id/travel', authMiddleware, xianxia.travelTo);
+app.get('/api/xianxia/items/:id/knowledge', authMiddleware, xianxia.getItemKnowledge);
 
 // ==================== Static files ====================
 if (fs.existsSync(clientBuildPath)) {

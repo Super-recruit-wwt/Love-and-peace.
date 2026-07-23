@@ -1,4 +1,4 @@
-// 剧本：采集 — 按地区材料池随机 1-3 种
+// 剧本：采集 — 精气神修正
 const { regionOf, rand, pick } = require('./utils');
 
 const REGION_POOLS = {
@@ -20,19 +20,42 @@ module.exports = {
   resolve(character) {
     const region = regionOf(character);
     const pool = REGION_POOLS[region] || REGION_POOLS['中州'];
-    const count = rand(1, 3);
+    const essence = character.essence || 40;
+    const spiritVal = character.spirit || 30;
+  const qiVal = character.qi || 40;
+    const corruption = character.strange_corruption || 0;
+
+    let count = rand(1, 3);
+    if (essence >= 60) count++;
+    if (essence >= 120) count++;
+  if (qiVal >= 80) count++;
+  if (qiVal >= 120) count++;
+    count = Math.min(count, 5);
+
     const items = [];
     for (let i = 0; i < count; i++) {
       items.push({ name: pick(pool), item_type: 'material', grade: '凡品' });
     }
+
+    // 神高→稀有材料加成
+    if (spiritVal >= 100 && Math.random() < 0.3) {
+      items.push({ name: pick(pool), item_type: 'material', grade: '凡品' });
+    }
+
     const elapsedDays = rand(1, 2);
     const names = items.map(i => i.name).join('、');
+
+    let corruptText = '';
+    if (corruption >= 41 && Math.random() < 0.2) {
+      corruptText = ' 你注意到有一株植物在你靠近时微微颤抖——不是在风中，是你靠近之后才开始的。';
+    }
+
     return {
       deltas: {},
       items,
       elapsedDays,
-      resultText: `采集${elapsedDays}天，寻获 ${count} 份材料：${names}。`,
-      renderParams: { count, materials: names },
+      resultText: `采集${elapsedDays}天，寻获 ${items.length} 份材料：${names}。${corruptText}`,
+      renderParams: { count: items.length, materials: names },
       options: ['继续采集', '去坊市出售', '回去休整'],
     };
   },

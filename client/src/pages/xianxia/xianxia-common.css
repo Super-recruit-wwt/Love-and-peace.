@@ -328,3 +328,117 @@
     align-items: flex-start;
   }
 }
+
+
+/* 行动错误提示 */
+.x-action-error {
+  font-size: 12px;
+  color: var(--color-seal);
+  padding: 6px 12px;
+  background: rgba(166, 58, 43, 0.06);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+/* 内联删除确认 */
+.x-delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.x-delete-confirm button {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+
+/* 物品行悬停效果 */
+.x-item-row {
+  transition: background 0.15s var(--ease-soft);
+  border-radius: var(--radius-sm);
+}
+.x-item-row:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+/* 物品名称悬停提示 */
+.x-item-name {
+  cursor: default;
+  border-bottom: 1px dotted var(--color-hairline);
+}
+
+/* 物品悬停提示浮层 */
+.x-item-tooltip {
+  position: fixed;
+  z-index: 1000;
+  bottom: 80px;
+  right: 20px;
+  max-width: 280px;
+  background: var(--color-porcelain);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-float);
+  font-size: 13px;
+  line-height: 1.7;
+  animation: fadeRise 0.2s var(--ease-soft) both;
+}
+.x-item-tooltip-name {
+  font-family: var(--font-display-cn);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  color: var(--color-ink);
+}
+
+/* 使用按钮悬停提示 */
+.x-use-btn {
+  position: relative;
+}
+
+/* 物品使用反馈 */
+.x-item-use-msg {
+  animation: fadeRise 0.2s var(--ease-soft) both;
+}
+
+/* 三元属性悬浮说明框（青白风格：宋体标题 + 细线边框 + 淡入） */
+.x-stat-block {
+  position: relative;
+}
+.x-stat-tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: 240px;
+  padding: 10px 12px;
+  background: var(--color-porcelain, #f7f9f8);
+  border: 1px solid var(--color-celadon, #46685b);
+  border-radius: var(--radius-sm, 4px);
+  box-shadow: 0 4px 16px rgba(70, 104, 91, 0.14);
+  animation: statTipFade 0.18s ease-out both;
+  pointer-events: none;
+  text-align: left;
+}
+.x-stat-tip-title {
+  font-family: "SimSun", "宋体", serif;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  color: var(--color-celadon, #46685b);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(70, 104, 91, 0.25);
+}
+.x-stat-tip-line {
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--color-ink-2, #3d4a44);
+}
+@keyframes statTipFade {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

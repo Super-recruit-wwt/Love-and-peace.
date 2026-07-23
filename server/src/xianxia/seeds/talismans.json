@@ -1,0 +1,18 @@
+[
+  {"name":"轻身符","grade":"凡品","type":"辅助","effect":{"travel_speed":0.6,"duration":"1_journey"},"materials":[{"name":"朱砂","qty":1}],"skill":10,"buy_price":20},
+  {"name":"微光符","grade":"凡品","type":"辅助","effect":{"dark_vision":true},"materials":[{"name":"朱砂","qty":1}],"skill":5,"buy_price":10},
+  {"name":"雷符","grade":"灵品","type":"攻击","effect":{"damage":30},"materials":[{"name":"朱砂","qty":2},{"name":"铁木","qty":1}],"skill":30,"buy_price":80},
+  {"name":"金刚符","grade":"灵品","type":"防御","effect":{"damage_reduce":0.5,"duration":"1_turn"},"materials":[{"name":"朱砂","qty":2},{"name":"寒铁","qty":1}],"skill":30,"buy_price":80},
+  {"name":"遁地符","grade":"灵品","type":"辅助","effect":{"return_to_safety":true},"materials":[{"name":"朱砂","qty":2},{"name":"铁木","qty":1}],"skill":35,"buy_price":100},
+  {"name":"火焰符","grade":"灵品","type":"攻击","effect":{"damage":25,"burn":3},"materials":[{"name":"朱砂","qty":2,"note":"加火属性材料"}],"skill":30,"buy_price":80},
+  {"name":"五雷符","grade":"宝品","type":"攻击","effect":{"damage":80,"beast_double":true},"materials":[{"name":"朱砂","qty":3},{"name":"冰晶石","qty":1}],"skill":55,"buy_price":300},
+  {"name":"聚灵符","grade":"宝品","type":"修炼","effect":{"cultivation_efficiency":1.4,"duration":"next"},"materials":[{"name":"朱砂","qty":2},{"name":"灵芝","qty":1}],"skill":50,"buy_price":250},
+  {"name":"清心符","grade":"宝品","type":"辅助","effect":{"heart_demon_reduce":0.3},"materials":[{"name":"朱砂","qty":2},{"name":"雪参","qty":1}],"skill":55,"buy_price":300},
+  {"name":"传音符","grade":"宝品","type":"通讯","effect":{"remote_npc_talk":true},"materials":[{"name":"朱砂","qty":1},{"name":"鲛珠","qty":1}],"skill":40,"buy_price":500},
+  {"name":"护身符","grade":"宝品","type":"防御","effect":{"damage_reduce":0.15,"duration":"3_battles"},"materials":[{"name":"朱砂","qty":3},{"name":"铁木","qty":1}],"skill":50,"buy_price":250},
+  {"name":"天雷符","grade":"玄品","type":"攻击","effect":{"damage":150,"ignore_defense":true,"paralyze":0.3},"materials":[{"name":"朱砂","qty":4},{"name":"风蚀玉","qty":1}],"skill":75,"buy_price":800},
+  {"name":"隐身符","grade":"玄品","type":"辅助","effect":{"avoid_encounters":true},"materials":[{"name":"朱砂","qty":3},{"name":"鲛珠","qty":1}],"skill":70,"buy_price":700},
+  {"name":"封魔符","grade":"玄品","type":"辅助","effect":{"corruption_freeze":30},"materials":[{"name":"朱砂","qty":4},{"name":"风蚀玉","qty":2}],"skill":80,"buy_price":2000},
+  {"name":"替死符","grade":"圣品","type":"防御","effect":{"death_prevent":0.3},"materials":[{"name":"朱砂","qty":5},{"name":"风蚀玉","qty":2},{"name":"鲛珠","qty":2}],"skill":95,"buy_price":20000},
+  {"name":"破界符","grade":"诡品","type":"辅助","effect":{"corruption":15,"clue":"诡道源头"},"note":"不能炼制，只能从诡道现象中获取","materials":[],"skill":null,"buy_price":null}
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "spirit_eye",
+    "name": "灵视之瞳",
+    "slot": "special",
+    "description": "npc_talk 中可感知 NPC 真实态度（模糊描述好感度范围）",
+    "effect": {"script": "npc_talk", "action": "add_option", "label": "暗中观察对方态度", "cost": {"spirit": -2}, "reveal": "affection_range"},
+    "cost": "每次使用消耗神 -2",
+    "acquire": "奇遇掉落 / 暗香楼交易"
+  },
+  {
+    "id": "steal_fate",
+    "name": "盗天机",
+    "slot": "special",
+    "description": "探索必定有发现（移除 一无所获 档次）",
+    "effect": {"script": "explore_location", "action": "reroll_nothing", "redirect_to": ["material", "stones"]},
+    "cost": "5% 概率在探索后触发负面遭遇",
+    "acquire": "秘境掉落"
+  },
+  {
+    "id": "light_body",
+    "name": "轻身符骨",
+    "slot": "special",
+    "description": "旅行时间减半",
+    "effect": {"script": "travel", "action": "halve_days", "penalty": {"robber_loss": "doubled", "found_stones": "zero"}},
+    "cost": "劫匪损失翻倍，意外收益归零",
+    "acquire": "奇遇掉落"
+  },
+  {
+    "id": "deceive_heaven",
+    "name": "欺天面",
+    "slot": "special",
+    "description": "宗门入门测试必定通过（一次性）",
+    "effect": {"script": "sect_join", "action": "force_success", "penalty": {"affection_start": -20}},
+    "cost": "入门后掌门初始好感度 -20，且欺天面自动碎裂",
+    "acquire": "暗香楼交易"
+  },
+  {
+    "id": "gather_qi_jade",
+    "name": "聚气玉",
+    "slot": "special",
+    "description": "修炼效率 ×1.5",
+    "effect": {"script": "cultivation_routine", "action": "multiply_qi", "multiplier": 1.5, "penalty": {"lifespan_extra_cost": 0.2}},
+    "cost": "每次修炼额外消耗 20% 寿元",
+    "acquire": "坊市稀有出售 / 秘境掉落"
+  },
+  {
+    "id": "storage_pendant",
+    "name": "纳物佩",
+    "slot": "special",
+    "description": "材料不消耗——采集或炼丹后材料数量不变",
+    "effect": {"script": "applyOutcome", "action": "skip_material_remove"},
+    "cost": "每 30 天随机 1 份材料变质",
+    "acquire": "天工坊委托报酬"
+  },
+  {
+    "id": "break_barrier",
+    "name": "破障丹方",
+    "slot": "special",
+    "description": "突破 timer 时长 -30%，成功后生命扣除减半",
+    "effect": {"script": "breakthrough_attempt", "timer_modifier": 0.7, "script2": "breakthrough", "health_change_modifier": 0.5},
+    "cost": "突破后有 30 天冷却期",
+    "acquire": "丹师会认证奖励"
+  },
+  {
+    "id": "rebirth_talisman",
+    "name": "往生符",
+    "slot": "special",
+    "description": "寿元耗尽死亡时触发最后三个选项，含 转世重修（属性继承 20%）",
+    "effect": {"script": "death_check", "action": "final_moment", "options": ["转世重修", "导出人生 MD", "就此结束"]},
+    "cost": "一次性——触发后碎裂。转世角色道心永久 -10",
+    "acquire": "奇遇极稀有掉落"
+  }
+]

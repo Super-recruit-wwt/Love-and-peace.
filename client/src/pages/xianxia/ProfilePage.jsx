@@ -41,11 +41,12 @@ export default function ProfilePage() {
         <div className="x-grid-2">
           <div className="x-info-block"><span className="x-info-label">寿元</span><span className="x-info-value">{formatYears(character.lifespan_remaining)}</span></div>
           <div className="x-info-block"><span className="x-info-label">生命</span><span className="x-info-value">{character.health}</span></div>
-          <div className="x-info-block"><span className="x-info-label">灵力</span><span className="x-info-value">{character.qi_current}/{character.qi_max}</span></div>
+          <div className="x-info-block"><span className="x-info-label">修为</span><span className="x-info-value">{character.qi_current}/{character.qi_max}</span></div>
           <div className="x-info-block"><span className="x-info-label">灵石</span><span className="x-info-value">{character.spirit_stones}</span></div>
           <div className="x-info-block"><span className="x-info-label">道心</span><span className="x-info-value">{character.dao_heart}</span></div>
           <div className="x-info-block"><span className="x-info-label">悟性</span><span className="x-info-value">{character.comprehension}</span></div>
           <div className="x-info-block"><span className="x-info-label">神识</span><span className="x-info-value">{character.divine_sense}</span></div>
+          <div className="x-info-block"><span className="x-info-label">气</span><span className="x-info-value">{character.qi ?? 40}</span></div>
           <div className="x-info-block"><span className="x-info-label">名望</span><span className="x-info-value">{character.fame}</span></div>
           <div className="x-info-block"><span className="x-info-label">恶名</span><span className="x-info-value">{character.infamy}</span></div>
           <div className="x-info-block"><span className="x-info-label">炼丹</span><span className="x-info-value">{character.alchemy_skill}</span></div>

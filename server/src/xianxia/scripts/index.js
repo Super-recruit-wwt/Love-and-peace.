@@ -3,9 +3,13 @@
 
 const scripts = [
   require('./breakthrough_attempt'),
+  require('./strange_ponder'),
+  require('./strange_contact'),
+  require('./strange_use_power'),
   require('./alchemy_craft'),
   require('./sect_join'),
   require('./challenge_duel'),
+  require('./rest_recover'),
   require('./trade'),
   require('./npc_talk'),
   require('./travel'),

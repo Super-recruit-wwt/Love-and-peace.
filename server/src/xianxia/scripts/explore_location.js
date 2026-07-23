@@ -1,4 +1,4 @@
-// 剧本：探索当前位置 — 按气运加权从发现池掷结果
+// 剧本：探索 — 精气神修正（精-受伤，气-灵石，神-线索发现）
 const { regionOf, rand, randf, pick } = require('./utils');
 
 const CLUES = [
@@ -25,51 +25,68 @@ module.exports = {
   },
 
   resolve(character) {
-    const fortune = character.fortune ?? 50; // 隐藏气运加权
+    const essence = character.essence || 40;
+    const spiritVal = character.spirit || 30;
+  const qiVal = character.qi || 40;
+    const qiMax = character.qi_max || 100;
+    const fortune = character.fortune ?? 50;
     const roll = randf(0, 1) * (0.7 + (fortune / 100) * 0.6);
     const region = regionOf(character);
     const elapsedDays = rand(1, 3);
+    // 伤判定：精低更容易探索受伤
+    const injuryChance = 0.3 * (1 - essence / 150);
+    const injured = Math.random() < injuryChance;
+    const injuryDelta = injured ? -rand(3, 8) : 0;
 
-    // 15% 线索（高气运加成后更易落入此档）
+    // 15% 线索（高神加成）
     if (roll > 0.85) {
       const clue = pick(CLUES);
+      const deltas = {};
+      if (injured) deltas.health = injuryDelta;
       return {
-        deltas: {},
+        deltas,
         elapsedDays,
-        resultText: `探索${elapsedDays}天。${clue}（获得一条奇遇线索）`,
-        renderParams: { outcome: 'clue', clue },
+        resultText: `探索${elapsedDays}天。${clue}（获得一条奇遇线索）${injured ? ` 途中踩滑摔了一跤——生命 ${injuryDelta}` : ''}`,
+        renderParams: { outcome: 'clue', clue, injured },
         options: ['追踪这条线索', '继续探索', '暂且记下，日后再说'],
       };
     }
-    // 20% 灵石
+    // 20% 灵石（气加成数量）
     if (roll > 0.6) {
-      const stones = rand(5, 30);
+      const qiMod = 1 + qiMax / 300;
+      const stones = Math.round(rand(5, 30) * qiMod);
+      const deltas = { spirit_stones: stones };
+      if (injured) deltas.health = injuryDelta;
       return {
-        deltas: { spirit_stones: stones },
+        deltas,
         elapsedDays,
-        resultText: `探索${elapsedDays}天，在一处隐蔽的石缝里摸到了 ${stones} 块灵石。`,
-        renderParams: { outcome: 'stones', stones },
+        resultText: `探索${elapsedDays}天，在一处隐蔽的石缝里摸到了 ${stones} 块灵石。${injured ? ` 过程中被碎石划伤了——生命 ${injuryDelta}` : ''}`,
+        renderParams: { outcome: 'stones', stones, injured },
         options: ['继续深入探索', '前往坊市', '回去休整'],
       };
     }
     // 25% 材料
     if (roll > 0.35) {
       const name = pick(REGION_MATERIALS[region] || REGION_MATERIALS['中州']);
+      const deltas = {};
+      if (injured) deltas.health = injuryDelta;
       return {
-        deltas: {},
+        deltas,
         items: [{ name, item_type: 'material', grade: '凡品' }],
         elapsedDays,
-        resultText: `探索${elapsedDays}天，寻获一份材料：${name}。`,
-        renderParams: { outcome: 'material', material: name },
+        resultText: `探索${elapsedDays}天，寻获一份材料：${name}。${injured ? ` 采集时被植被划伤——生命 ${injuryDelta}` : ''}`,
+        renderParams: { outcome: 'material', material: name, injured },
         options: ['继续采集', '去坊市出售', '回去休整'],
       };
     }
     // 40% 无获
+    const deltas = {};
+    if (injured) deltas.health = injuryDelta;
     return {
-      deltas: {},
+      deltas,
       elapsedDays,
-      resultText: `探索${elapsedDays}天，一无所获。这一带似乎平静得有些过分。`,
-      renderParams: { outcome: 'nothing' },
+      resultText: `探索${elapsedDays}天，一无所获。这一带似乎平静得有些过分。${injured ? ` 还不慎扭了脚——生命 ${injuryDelta}` : ''}`,
+      renderParams: { outcome: 'nothing', injured },
       options: ['换个方向再探', '回去休整', '找人打听消息'],
     };
   },

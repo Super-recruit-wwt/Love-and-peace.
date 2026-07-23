@@ -183,6 +183,15 @@ function init() {
       timer_type TEXT,
       timer_end_at TEXT,
       timer_narrative TEXT,
+      -- 精、气、神三元属性（qi_max 复用为「气」）
+      essence REAL NOT NULL DEFAULT 40,
+      spirit REAL NOT NULL DEFAULT 30,
+      -- 诡道路线
+      strange_corruption REAL DEFAULT 0,
+      -- 特殊装备（JSON 数组）
+      special_equipment TEXT DEFAULT '[]',
+      -- 已习得功法（JSON 数组）
+      learned_techniques TEXT DEFAULT '[]',
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -269,13 +278,30 @@ function init() {
     -- 角色物品/法宝
     CREATE TABLE IF NOT EXISTS xianxia_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      character_id INTEGER NOT NULL,
+      character_id INTEGER,  -- NULL = 系统种子模板；非 NULL = 角色持有
       name TEXT NOT NULL,
-      item_type TEXT NOT NULL CHECK(item_type IN ('treasure','pill','technique','material','spirit_stone','misc')),
+      item_type TEXT NOT NULL CHECK(item_type IN ('weapon','armor','accessory','artifact','treasure','pill','talisman','technique','material','consumable','spirit_stone','misc')),
       grade TEXT NOT NULL DEFAULT '凡品',
       description TEXT,
       quantity INTEGER DEFAULT 1,
       is_equipped INTEGER DEFAULT 0,
+      -- 装备属性
+      attack REAL,
+      defense REAL,
+      slot TEXT,           -- weapon/armor/accessory/artifact（非装备为 NULL）
+      effect TEXT,         -- 特殊效果 JSON
+      durability REAL,
+      max_durability REAL,
+      -- 装备门槛
+      req_essence REAL,
+      req_qi REAL,
+      req_spirit REAL,
+      -- 炼制信息（丹药/符箓种子数据用）
+      craft_skill INTEGER,          -- 炼制所需技能值
+      craft_materials TEXT,         -- 所需材料 JSON: [{ name, qty }]
+      -- 直接服用效果（材料生吃用）
+      raw_effect TEXT,              -- JSON: { stat: value, stat: value }
+      raw_side_effect TEXT,         -- JSON: { stat: value } 负面
       metadata TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE
@@ -294,6 +320,120 @@ function init() {
   safeAddColumn('xianxia_timeline', 'options', 'TEXT');
   // 兼容旧库：xianxia_timeline 增加 rewards 列（剧本收益摘要 JSON 数组）
   safeAddColumn('xianxia_timeline', 'rewards', 'TEXT');
+  // 兼容旧库：xianxia_characters 增加精、气、神、诡道、特殊装备、功法列
+  safeAddColumn('xianxia_characters', 'essence', 'REAL NOT NULL DEFAULT 40');
+  safeAddColumn('xianxia_characters', 'spirit', 'REAL NOT NULL DEFAULT 30');
+  safeAddColumn('xianxia_characters', 'qi', 'REAL NOT NULL DEFAULT 40');
+  safeAddColumn('xianxia_characters', 'strange_corruption', 'REAL DEFAULT 0');
+  safeAddColumn('xianxia_characters', 'special_equipment', "TEXT DEFAULT '[]'");
+  safeAddColumn('xianxia_characters', 'learned_techniques', "TEXT DEFAULT '[]'");
+  // 兼容旧库：xianxia_items 增加装备属性、门槛、炼制信息、直接服用效果列
+  // 兼容旧库：xianxia_characters 增加已发现地点列表
+  safeAddColumn('xianxia_characters', 'discovered_locations', "TEXT DEFAULT '[]'");
+  // 兼容旧库：诡道力量增益标记（strange_use_power 写入，challenge_duel 消费）
+  safeAddColumn('xianxia_characters', 'power_buff', 'TEXT');
+  safeAddColumn('xianxia_items', 'attack', 'REAL');
+  safeAddColumn('xianxia_items', 'defense', 'REAL');
+  safeAddColumn('xianxia_items', 'slot', 'TEXT');
+  safeAddColumn('xianxia_items', 'effect', 'TEXT');
+  safeAddColumn('xianxia_items', 'durability', 'REAL');
+  safeAddColumn('xianxia_items', 'max_durability', 'REAL');
+  safeAddColumn('xianxia_items', 'req_essence', 'REAL');
+  safeAddColumn('xianxia_items', 'req_qi', 'REAL');
+  safeAddColumn('xianxia_items', 'req_spirit', 'REAL');
+  safeAddColumn('xianxia_items', 'craft_skill', 'INTEGER');
+  safeAddColumn('xianxia_items', 'craft_materials', 'TEXT');
+  safeAddColumn('xianxia_items', 'raw_effect', 'TEXT');
+  safeAddColumn('xianxia_items', 'raw_side_effect', 'TEXT');
+  // 迁移：将 xianxia_items.character_id 从 NOT NULL 改为 NULLABLE（兼容旧库）
+  try {
+    var itemsCols = db.prepare("PRAGMA table_info('xianxia_items')").all();
+    var charIdCol = null;
+    for (var idx = 0; idx < itemsCols.length; idx++) {
+      if (itemsCols[idx].name === 'character_id') { charIdCol = itemsCols[idx]; break; }
+    }
+    if (charIdCol && charIdCol.notnull === 1) {
+      console.log('[db] >>> character_id NOT NULL detected, migrating...');
+      db.pragma('foreign_keys = OFF');
+      var MIGRATE_COLS = 'id, character_id, name, item_type, grade, description, quantity, is_equipped, ' +
+        'attack, defense, slot, effect, durability, max_durability, ' +
+        'req_essence, req_qi, req_spirit, craft_skill, craft_materials, raw_effect, raw_side_effect, metadata, created_at';
+      var ddl = "CREATE TABLE xianxia_items_migrate (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+        "character_id INTEGER," +
+        "name TEXT NOT NULL," +
+        "item_type TEXT NOT NULL," +
+        "grade TEXT NOT NULL DEFAULT '凡品'," +
+        "description TEXT," +
+        "quantity INTEGER DEFAULT 1," +
+        "is_equipped INTEGER DEFAULT 0," +
+        "attack REAL," +
+        "defense REAL," +
+        "slot TEXT," +
+        "effect TEXT," +
+        "durability REAL," +
+        "max_durability REAL," +
+        "req_essence REAL," +
+        "req_qi REAL," +
+        "req_spirit REAL," +
+        "craft_skill INTEGER," +
+        "craft_materials TEXT," +
+        "raw_effect TEXT," +
+        "raw_side_effect TEXT," +
+        "metadata TEXT," +
+        "created_at TEXT DEFAULT (datetime('now'))," +
+        'FOREIGN KEY (character_id) REFERENCES xianxia_characters(id) ON DELETE CASCADE)'
+      ;
+      db.exec(ddl);
+      // 显式列名映射，杜绝 SELECT * 列序错位
+      db.exec('INSERT INTO xianxia_items_migrate (' + MIGRATE_COLS + ') SELECT ' + MIGRATE_COLS + ' FROM xianxia_items');
+      db.exec('DROP TABLE xianxia_items');
+      db.exec('ALTER TABLE xianxia_items_migrate RENAME TO xianxia_items');
+      db.pragma('foreign_keys = ON');
+      console.log('[db] >>> Migration complete');
+    }
+  } catch (migrateErr) {
+    console.error('[db] >>> Migration failed:', migrateErr.message);
+    try { db.pragma('foreign_keys = ON'); } catch (e) {}
+  }
+  // 修复旧版错位迁移的存量污染：created_at 曾落入 defense 列（datetime 字符串），还原之
+  try {
+    var repaired = db.prepare(
+      "UPDATE xianxia_items SET created_at = defense, defense = NULL WHERE typeof(defense) = 'text' AND defense GLOB '????-??-??*' AND created_at IS NULL"
+    ).run();
+    if (repaired.changes > 0) console.log('[db] >>> 修复错位迁移数据', repaired.changes, '行');
+  } catch (repairErr) {
+    console.error('[db] >>> 错位数据修复失败:', repairErr.message);
+  }
+  // 数据修复：旧版坊市出售的"精铁剑"是 treasure 类型不可装备，补正为 weapon
+  try {
+    var swordFix = db.prepare(
+      "UPDATE xianxia_items SET item_type = 'weapon', slot = 'weapon', attack = 8 WHERE name = '精铁剑' AND item_type = 'treasure'"
+    ).run();
+    if (swordFix.changes > 0) console.log('[db] >>> 修复精铁剑类型', swordFix.changes, '行');
+  } catch (swordErr) {
+    console.error('[db] >>> 精铁剑修复失败:', swordErr.message);
+  }
+  // 数据迁移：修为上限随境界成长——按 cultivation_paths.xiandao 重算所有角色 qi_max
+  try {
+    const { qiMaxForStage } = require('./xianxia/scripts/utils');
+    const chars = db.prepare('SELECT id, cultivation_paths, qi_max, qi_current FROM xianxia_characters').all();
+    let migrated = 0;
+    const upd = db.prepare('UPDATE xianxia_characters SET qi_max = ?, qi_current = MIN(qi_current, ?) WHERE id = ?');
+    for (const c of chars) {
+      let stage = null;
+      try { stage = JSON.parse(c.cultivation_paths || '{}').xiandao; } catch { /* 忽略脏数据 */ }
+      if (!stage) continue;
+      const newMax = qiMaxForStage(stage);
+      if (c.qi_max !== newMax) {
+        upd.run(newMax, newMax, c.id);
+        migrated++;
+      }
+    }
+    if (migrated > 0) console.log('[db] >>> 修为上限迁移（随境界成长）', migrated, '行');
+  } catch (qiErr) {
+    console.error('[db] >>> 修为上限迁移失败:', qiErr.message);
+  }
   module.exports.safeAddColumn = safeAddColumn;
 }
 

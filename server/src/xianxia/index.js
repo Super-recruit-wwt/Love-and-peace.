@@ -6,6 +6,7 @@ const xianxiaLLM = require('./llm');
 const breakthrough = require('./breakthrough');
 const npcEngine = require('./npc');
 const worldEvents = require('./events');
+const npcBehavior = require('./npc_behavior');
 
 // ==================== 简单 per-user 频率限制（内存计数） ====================
 
@@ -66,6 +67,8 @@ const CHARACTER_PUBLIC_COLS = `id, name, gender, status, spirit_roots, special_b
   comprehension, spirit_stones, fame, infamy, charm, pressure,
   alchemy_skill, crafting_skill, formation_skill, talisman_skill,
   body_status, current_location, game_age,
+  essence, qi, spirit,
+  strange_corruption, discovered_locations,
   timer_type, timer_end_at, timer_narrative, created_at, updated_at`;
 
 // ==================== 角色管理 ====================
@@ -107,6 +110,18 @@ function createCharacter(req, res) {
   ).run(req.userId, safeName, safeGender, JSON.stringify(spiritRoots), specialBody, birth.region, birth.background);
 
   const characterId = result.lastInsertRowid;
+
+  // 初始地点发现：出生区域 + 当前所在区域的地点立即可前往（避免新玩家旅行死锁）
+  try {
+    const newChar = db.prepare('SELECT current_location FROM xianxia_characters WHERE id = ?').get(characterId);
+    const currentRegion = ((newChar && newChar.current_location) || '中州-无名小镇').split('-')[0];
+    const initial = new Set(REGION_LOCATIONS[birth.region] || []);
+    for (const loc of REGION_LOCATIONS[currentRegion] || []) initial.add(loc);
+    if (initial.size > 0) {
+      db.prepare("UPDATE xianxia_characters SET discovered_locations = ? WHERE id = ?")
+        .run(JSON.stringify([...initial]), characterId);
+    }
+  } catch (e) { console.error('初始地点发现失败:', e.message); }
 
   res.json({
     character: {
@@ -161,6 +176,7 @@ function deleteCharacter(req, res) {
 
   // 取舍说明：删除视为「彻底抹除这一世」——包括已陨落/已飞升角色的传世与通关记录。
   // 各表虽有 ON DELETE CASCADE，仍在事务内显式逐表删除，双保险（FK 失效时也能删干净）。
+  actionQueues.delete(character.id);
   const deleteAll = db.transaction(() => {
     db.prepare('DELETE FROM xianxia_timeline WHERE character_id = ?').run(character.id);
     db.prepare('DELETE FROM xianxia_relationships WHERE character_id = ?').run(character.id);
@@ -313,6 +329,11 @@ async function processAction(req, res) {
 
       const r = await xianxiaLLM.processAction(characterId, safeAction);
 
+      // 防御性合并：两条路径不会同时出现，但如果同时出现则 timerSet 优先
+      if (r.timerSet && r.timerTriggered) {
+        delete r.timerTriggered;
+      }
+
       // 剧本通道：计时器已在事务内由服务端设置，直接透传给客户端
       if (r.timerSet) {
         r.timer = r.timerSet;
@@ -333,6 +354,15 @@ async function processAction(req, res) {
       }
       delete r.timerTriggered;
 
+      // 推进游戏时间
+      if (r.gameTime != null) {
+        const ageNum = parseFloat(r.gameTime) || 0;
+        if (ageNum > 0) {
+          db.prepare('UPDATE xianxia_characters SET game_age = MAX(game_age, ?), updated_at = datetime(\'now\') WHERE id = ?')
+            .run(ageNum, characterId);
+        }
+      }
+
       if (settled && settled.narrative) r.settled = settled.narrative;
 
       // NPC 好感度启发式：仅自由通道（剧本通道由剧本自身 npcEffects 处理）
@@ -342,6 +372,8 @@ async function processAction(req, res) {
             .filter(n => n.name && (r.narrative.includes(n.name) || safeAction.includes(n.name)));
           if (mentioned.length > 0) {
             const deltas = npcEngine.analyzeAffectionChange(r.narrative, safeAction);
+            // 按绝对值排序，优先应用影响最大的变化
+            deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
             for (const n of mentioned.slice(0, 3)) {
               for (const d of deltas.slice(0, 2)) {
                 npcEngine.applyAffectionChange(characterId, n.id, d.delta, d.reason);
@@ -366,6 +398,58 @@ async function processAction(req, res) {
       } catch (e) {
         console.error('世界事件推演失败:', e.message);
       }
+
+      // NPC 半主动行为：8% 概率触发
+      try {
+        const nb = npcBehavior.triggerNpcBehavior(characterId);
+        if (nb.triggered) {
+          // 应用属性收益（带边界 clamp），并生成收益摘要写入时间线 rewards
+          const NB_BOUNDS = { health: [0, 100], dao_heart: [0, 100], qi_current: [0, 99999], qi: [0, 999], essence: [0, 999], spirit: [0, 999], spirit_stones: [0, 999999] };
+          const NB_LABELS = { health: '生命', dao_heart: '道心', qi_current: '灵力', qi: '气', essence: '精', spirit: '神', spirit_stones: '灵石' };
+          const rewards = [];
+          const charNow = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(characterId);
+          for (const [key, delta] of Object.entries(nb.deltas || {})) {
+            if (typeof delta !== 'number' || delta === 0) continue;
+            const bounds = NB_BOUNDS[key] || [0, 999999];
+            const cur = charNow && typeof charNow[key] === 'number' ? charNow[key] : 0;
+            const val = Math.min(bounds[1], Math.max(bounds[0], cur + delta));
+            db.prepare(`UPDATE xianxia_characters SET ${key} = ?, updated_at = datetime('now') WHERE id = ?`).run(val, characterId);
+            rewards.push({ text: `${NB_LABELS[key] || key} ${delta > 0 ? '+' : ''}${delta}`, tone: delta > 0 ? 'gain' : 'loss' });
+          }
+          for (const e of nb.npcEffects || []) {
+            try { npcEngine.applyAffectionChange(characterId, e.npcId, e.delta, e.reason); } catch {}
+          }
+          db.prepare(
+            'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative, rewards) VALUES (?, ?, ?, ?, ?)'
+          ).run(characterId, r.gameTime || '', 'npc_behavior', nb.narrative,
+            rewards.length > 0 ? JSON.stringify(rewards) : null);
+          r.npc_behavior = nb;
+        }
+      } catch (e) {
+        console.error('NPC 行为触发失败:', e.message);
+      }
+
+      // 死亡判定：只认数值与显式状态，不扫描叙事文本（叙事措辞不可作为判死依据）
+      // 判死条件：显式 statusChanged，或行动结算后生命归零
+      try {
+        const freshChar = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(characterId);
+        const diedByWounds = freshChar && freshChar.status === 'active' && (freshChar.health || 0) <= 0;
+        if ((r.statusChanged === 'dead' || diedByWounds) && freshChar && freshChar.status === 'active') {
+          const deathNarrative = diedByWounds
+            ? '伤势过重，回天乏术。这一世的路走到了尽头，求道者倒在了征途之上。'
+            : (r.deathNarrative || '在修仙途中陨落。');
+          const cultivation = JSON.parse(freshChar.cultivation_paths || '{}');
+          const finalCultivation = Object.values(cultivation).filter(Boolean).join('、') || '未入道门';
+          db.prepare("UPDATE xianxia_characters SET status = 'dead', updated_at = datetime('now') WHERE id = ?")
+            .run(characterId);
+          db.prepare(
+            'INSERT INTO xianxia_legacy (character_id, death_cause, death_narrative, final_cultivation, final_age, legacy_type) VALUES (?, ?, ?, ?, ?, ?)'
+          ).run(characterId, diedByWounds ? '伤重不治' : (r.deathCause || '在修仙途中陨落'),
+            deathNarrative, finalCultivation, Math.floor(freshChar.game_age || 0), 'battle_death');
+          r.died = true;
+          r.deathNarrative = deathNarrative;
+        }
+      } catch (e) { console.error('死亡记录写入失败:', e.message); }
 
       return r;
     });
@@ -564,8 +648,352 @@ function weightedRandom(values, weights) {
   return values[0];
 }
 
+// ==================== 物品使用 API ====================
+
+/** POST /api/xianxia/characters/:id/use-item — 使用背包中的物品 */
+async function useItem(req, res) {
+  const character = db.prepare('SELECT * FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  const { itemId } = req.body;
+  if (!itemId) return res.status(400).json({ error: '请指定物品' });
+
+  const item = db.prepare('SELECT * FROM xianxia_items WHERE id = ? AND character_id = ?')
+    .get(itemId, character.id);
+  if (!item) return res.status(404).json({ error: '物品不存在或不属于此角色' });
+
+  const type = item.item_type;
+  const effect = JSON.parse(item.effect || '{}');
+  const rawEffect = JSON.parse(item.raw_effect || '{}');
+  const deltas = {};
+
+  if (type === 'pill' || (type === 'material' && Object.keys(rawEffect).length > 0)) {
+    const e = type === 'pill' ? effect : rawEffect;
+    for (const [key, val] of Object.entries(e)) {
+      if (typeof val === 'number') {
+        const colMap = { health: 'health', qi_current: 'qi_current', qi_max: 'qi_max', essence: 'essence', qi: 'qi', spirit: 'spirit', lifespan: 'lifespan_remaining', health_regen: 'health' };
+        const col = colMap[key] || key;
+        if (['health', 'qi_current', 'qi_max', 'essence', 'spirit', 'lifespan_remaining', 'dao_heart', 'comprehension', 'divine_sense', 'fame', 'infamy', 'alchemy_skill', 'crafting_skill', 'formation_skill', 'talisman_skill', 'spirit_stones', 'qi'].includes(col)) {
+          deltas[col] = (deltas[col] || 0) + val;
+        }
+      }
+    }
+  }
+
+  if (type === 'talisman') {
+    for (const [key, val] of Object.entries(effect)) {
+      if (typeof val === 'number') {
+        const colMap = { health: 'health', qi_current: 'qi_current', qi_max: 'qi_max', essence: 'essence', qi: 'qi', spirit: 'spirit', defense: 'health', attack: 'charm' };
+        const col = colMap[key] || key;
+        if (['health', 'qi_current', 'qi_max', 'essence', 'spirit', 'lifespan_remaining', 'dao_heart', 'comprehension', 'divine_sense', 'fame', 'infamy', 'alchemy_skill', 'crafting_skill', 'formation_skill', 'talisman_skill', 'spirit_stones'].includes(col)) {
+          deltas[col] = (deltas[col] || 0) + val;
+        }
+      }
+    }
+  }
+
+  // 应用数值（带上限 clamp：生命≤100、道心/悟性≤100、qi_current≤qi_max、三元≤999）
+  const USE_BOUNDS = {
+    health: 100, dao_heart: 100, comprehension: 100,
+    alchemy_skill: 100, crafting_skill: 100, formation_skill: 100, talisman_skill: 100,
+    essence: 999, qi: 999, spirit: 999,
+    qi_max: Infinity, lifespan_remaining: Infinity, divine_sense: Infinity,
+    fame: Infinity, infamy: Infinity, spirit_stones: Infinity, qi_current: Infinity,
+  };
+  const applyUse = db.transaction(() => {
+    const fresh = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(character.id);
+    for (const [key, delta] of Object.entries(deltas)) {
+      if (delta === 0) continue;
+      const cap = key === 'qi_current' ? (fresh.qi_max > 0 ? fresh.qi_max : Infinity) : (USE_BOUNDS[key] ?? Infinity);
+      const cur = typeof fresh[key] === 'number' ? fresh[key] : 0;
+      const val = Math.min(cap, Math.max(0, cur + delta));
+      db.prepare('UPDATE xianxia_characters SET ' + key + ' = ?, updated_at = datetime(\'now\') WHERE id = ?')
+        .run(val, character.id);
+    }
+    if (item.quantity > 1) {
+      db.prepare('UPDATE xianxia_items SET quantity = quantity - 1 WHERE id = ?').run(item.id);
+    } else {
+      db.prepare('DELETE FROM xianxia_items WHERE id = ?').run(item.id);
+    }
+  });
+  applyUse();
+
+  const updated = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(character.id);
+
+  res.json({ deltas, character: updated });
+}
+
+// ==================== 地点探索与旅行 ====================
+
+/** 所有已知地点的完整列表（用于判断玩家可发现的地点池） */
+var ALL_LOCATIONS = [
+  '太虚剑宗', '浑天宗', '丹霞谷', '天机阁', '万兽山', '金刚寺',
+  '万象商会总会', '云来城', '铁骨门', '寒冰宗', '血河宗', '深渊裂隙',
+  '万毒教', '蛊神宗', '青木宗', '雾中村',
+  '碧水宫', '龙血殿', '黑水港', '海底古遗迹', '虚海',
+  '搬山宗', '白骨观', '大周王朝', '北朔王朝', '西凉王朝'
+];
+
+/** 区域-地点映射，用于自动发现同区域地点 */
+var REGION_LOCATIONS = {
+  '中州': ['太虚剑宗', '浑天宗', '丹霞谷', '天机阁', '万兽山', '金刚寺', '万象商会总会', '云来城'],
+  '北荒': ['铁骨门', '寒冰宗', '血河宗', '深渊裂隙'],
+  '南疆': ['万毒教', '蛊神宗', '青木宗', '雾中村'],
+  '东海': ['碧水宫', '龙血殿', '黑水港', '海底古遗迹', '虚海'],
+  '西漠': ['搬山宗', '白骨观', '大周王朝', '北朔王朝', '西凉王朝'],
+};
+
+/** 为角色发现新地点（在已有区域附近自动发现邻近地点） */
+function discoverLocations(characterId) {
+  var char = db.prepare('SELECT discovered_locations, current_location FROM xianxia_characters WHERE id = ?').get(characterId);
+  if (!char) return [];
+
+  var discovered = JSON.parse(char.discovered_locations || '[]');
+  var currentRegion = char.current_location ? char.current_location.split('-')[0] : null;
+  var newlyDiscovered = [];
+
+  // 1. 如果当前区域有未发现的地点，发现它们
+  if (currentRegion && REGION_LOCATIONS[currentRegion]) {
+    for (var loc of REGION_LOCATIONS[currentRegion]) {
+      if (!discovered.includes(loc)) {
+        discovered.push(loc);
+        newlyDiscovered.push(loc);
+      }
+    }
+  }
+
+  // 2. 额外发现 1-2 个随机地点（模拟传闻）
+  var allKnownLocations = [];
+  for (var region of Object.keys(REGION_LOCATIONS)) {
+    allKnownLocations = allKnownLocations.concat(REGION_LOCATIONS[region]);
+  }
+  var notDiscovered = allKnownLocations.filter(function(l) { return !discovered.includes(l); });
+  if (notDiscovered.length > 0) {
+    var extraCount = Math.min(Math.floor(Math.random() * 3), notDiscovered.length);
+    for (var i = 0; i < extraCount; i++) {
+      var randIdx = Math.floor(Math.random() * notDiscovered.length);
+      discovered.push(notDiscovered[randIdx]);
+      newlyDiscovered.push(notDiscovered[randIdx]);
+      notDiscovered.splice(randIdx, 1);
+    }
+  }
+
+  db.prepare("UPDATE xianxia_characters SET discovered_locations = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(JSON.stringify(discovered), characterId);
+
+  return newlyDiscovered;
+}
+
+/** GET /api/xianxia/characters/:id/discover-locations — 手动刷新已发现地点 */
+function refreshDiscoveredLocations(req, res) {
+  // 先校验属主，再执行发现（发现会写库，不能越权改写他人角色）
+  var owned = db.prepare('SELECT id FROM xianxia_characters WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
+  if (!owned) return res.status(404).json({ error: '角色不存在' });
+  var newlyDiscovered = discoverLocations(req.params.id);
+  var char = db.prepare('SELECT discovered_locations FROM xianxia_characters WHERE id = ?').get(req.params.id);
+  var discovered = char ? JSON.parse(char.discovered_locations || '[]') : [];
+  res.json({ discovered_locations: discovered, newly_discovered: newlyDiscovered });
+}
+
+/** POST /api/xianxia/characters/:id/travel — 旅行到指定地点 */
+async function travelTo(req, res) {
+  var characterId = parseInt(req.params.id, 10);
+  var character = db.prepare('SELECT id, user_id, status, current_location, game_age FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(characterId, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+  if (character.status !== 'active') return res.status(400).json({ error: '该角色已陨落或飞升' });
+
+  var { location } = req.body;
+  if (!location || typeof location !== 'string') return res.status(400).json({ error: '请指定目的地' });
+  location = location.trim().slice(0, 100);
+
+  // 检查目的地是否已发现
+  var discovered = JSON.parse(db.prepare('SELECT discovered_locations FROM xianxia_characters WHERE id = ?').get(characterId).discovered_locations || '[]');
+  if (!discovered.includes(location)) return res.status(400).json({ error: '你还不知道这个地方在哪里，无法前往' });
+
+  // 频率限制
+  if (!rateAllow('travel:' + req.userId, 5, 60 * 1000)) {
+    return res.status(429).json({ error: '旅行过于频繁，请稍候再试' });
+  }
+
+  // 找到目的地所属区域
+  var targetRegion = null;
+  for (var region of Object.keys(REGION_LOCATIONS)) {
+    if (REGION_LOCATIONS[region].includes(location)) { targetRegion = region; break; }
+  }
+  if (!targetRegion) targetRegion = '中州';
+
+  var currentRegion = character.current_location ? character.current_location.split('-')[0] : '中州';
+  var isSameRegion = targetRegion === currentRegion;
+
+  try {
+    // 使用 LLM 生成旅行叙事
+    var narrative = await xianxiaLLM.generateTravelNarrative(
+      character.current_location || '未知',
+      targetRegion + '-' + location,
+      isSameRegion
+    );
+
+    // 更新角色位置 + 推进时间
+    var travelDays = isSameRegion ? (Math.random() * 3 + 1) : (Math.random() * 10 + 5);
+    var newGameAge = (parseFloat(character.game_age) || 0) + travelDays / 365;
+
+    db.prepare("UPDATE xianxia_characters SET current_location = ?, game_age = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(targetRegion + '-' + location, newGameAge, characterId);
+
+    // 记录时间线
+    db.prepare(
+      'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative) VALUES (?, ?, ?, ?)'
+    ).run(characterId, xianxiaLLM.formatGameAge(newGameAge), 'travel', narrative);
+
+    // 到达新地点后自动发现同区域地点
+    var newlyDiscovered = discoverLocations(characterId);
+
+    res.json({
+      narrative: narrative,
+      current_location: targetRegion + '-' + location,
+      game_age: newGameAge,
+      timer: null,
+      discovered_locations: JSON.parse(db.prepare('SELECT discovered_locations FROM xianxia_characters WHERE id = ?').get(characterId).discovered_locations || '[]'),
+      newly_discovered: newlyDiscovered.length > 0 ? newlyDiscovered : undefined
+    });
+  } catch (err) {
+    console.error('旅行失败:', err.message);
+    res.status(500).json({ error: '旅行失败，请重试' });
+  }
+}
+
+// ==================== 物品信息查询 ====================
+
+/** GET /api/xianxia/items/:id/knowledge — 获取物品详情（含玩家已知效果和隐藏效果） */
+function getItemKnowledge(req, res) {
+  var itemId = parseInt(req.params.id, 10);
+  var item = db.prepare('SELECT * FROM xianxia_items WHERE id = ?').get(itemId);
+  if (!item) return res.status(404).json({ error: '物品不存在' });
+  // 属主校验：种子模板（character_id 为 NULL）与他人背包物品一律 404
+  if (item.character_id == null) return res.status(404).json({ error: '物品不存在' });
+  var owner = db.prepare('SELECT id FROM xianxia_characters WHERE id = ? AND user_id = ?').get(item.character_id, req.userId);
+  if (!owner) return res.status(404).json({ error: '物品不存在' });
+
+  var effect = JSON.parse(item.effect || '{}');
+  var rawEffect = JSON.parse(item.raw_effect || '{}');
+  var rawSideEffect = JSON.parse(item.raw_side_effect || '{}');
+
+  // 玩家已知效果：effect 字段（炼丹产物可见效果）
+  var knownEffects = [];
+  for (var [key, val] of Object.entries(effect)) {
+    var labels = { health: '恢复生命', qi_current: '恢复灵力', qi_max: '提升气海', essence: '增强体魄', spirit: '增强神识', lifespan: '增加寿元', dao_heart: '提升道心', comprehension: '提升悟性', divine_sense: '提升神识' };
+    knownEffects.push((labels[key] || key) + (typeof val === 'number' && val > 0 ? ' +' + val : ' ' + val));
+  }
+  if (knownEffects.length === 0) knownEffects.push('效果未知');
+
+  // 隐藏效果：raw_side_effect（玩家需通过实验或他人告知才能发现）
+  var hiddenEffects = [];
+  for (var [key, val] of Object.entries(rawSideEffect)) {
+    var labels = { health: '生命反噬', qi_current: '灵力紊乱', essence: '体魄衰退', spirit: '神识损伤', strange_corruption: '异化度增加' };
+    hiddenEffects.push((labels[key] || key) + (typeof val === 'number' && val > 0 ? ' +' + val : ' ' + val));
+  }
+  // raw_effect（生服材料的效果）
+  var rawKnown = [];
+  for (var [key, val] of Object.entries(rawEffect)) {
+    var labels = { health: '恢复生命', qi_current: '恢复灵力', essence: '增强体魄', spirit: '增强神识' };
+    rawKnown.push((labels[key] || key) + (typeof val === 'number' && val > 0 ? ' +' + val : ' ' + val));
+  }
+
+  res.json({
+    id: item.id,
+    name: item.name,
+    item_type: item.item_type,
+    grade: item.grade || '凡品',
+    known_effects: knownEffects,
+    raw_effects: rawKnown.length > 0 ? rawKnown : undefined,
+    hidden_effects: hiddenEffects.length > 0 ? hiddenEffects : undefined,
+    quantity: item.quantity || 1,
+    description: item.description || item.name
+  });
+}
+
+// ==================== 物品堆叠工具 ====================
+
+/** 合并角色背包中相同名称/类型/品级的物品（减少冗余行） */
+function mergeDuplicateItems(characterId) {
+  var duplicates = db.prepare(
+    'SELECT name, item_type, grade, COUNT(*) as cnt, SUM(quantity) as total, MIN(id) as keep_id FROM xianxia_items WHERE character_id = ? GROUP BY name, item_type, grade HAVING cnt > 1'
+  ).all(characterId);
+
+  var merged = 0;
+  for (var dup of duplicates) {
+    // 删除重复行（保留 ID 最小的那行）
+    var rowsToDelete = db.prepare(
+      'SELECT id FROM xianxia_items WHERE character_id = ? AND name = ? AND item_type = ? AND grade = ? AND id != ?'
+    ).all(characterId, dup.name, dup.item_type, dup.grade, dup.keep_id);
+
+    for (var row of rowsToDelete) {
+      db.prepare('DELETE FROM xianxia_items WHERE id = ?').run(row.id);
+    }
+
+    // 更新保留行的 quantity 为总和
+    db.prepare('UPDATE xianxia_items SET quantity = ? WHERE id = ?').run(dup.total, dup.keep_id);
+    merged += rowsToDelete.length;
+  }
+  return merged;
+}
+
+
+/** POST /api/xianxia/characters/:id/equip — 装备物品 */
+function equipItem(req, res) {
+  var character = db.prepare('SELECT id, user_id, status FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  var itemId = parseInt(req.body.itemId, 10);
+  var item = db.prepare('SELECT * FROM xianxia_items WHERE id = ? AND character_id = ?')
+    .get(itemId, character.id);
+  if (!item) return res.status(404).json({ error: '物品不存在或不属于此角色' });
+  // 可装备判定：类型为装备四件套，或物品自带槽位（兼容旧数据 treasure 带 slot 的情况）
+  if (!['weapon', 'armor', 'accessory', 'artifact'].includes(item.item_type) && !item.slot) {
+    return res.status(400).json({ error: '该类型物品无法装备' });
+  }
+  if (item.is_equipped) return res.status(400).json({ error: '该物品已装备' });
+
+  // 同槽位先卸下现有装备
+  var slot = item.slot || item.item_type;
+  var existing = db.prepare('SELECT id FROM xianxia_items WHERE character_id = ? AND is_equipped = 1 AND (slot = ? OR (slot IS NULL AND item_type = ?))')
+    .get(character.id, slot, item.item_type);
+  if (existing) {
+    db.prepare('UPDATE xianxia_items SET is_equipped = 0 WHERE id = ?').run(existing.id);
+  }
+
+  db.prepare('UPDATE xianxia_items SET is_equipped = 1 WHERE id = ?').run(item.id);
+  res.json({ success: true, message: '装备成功' });
+}
+
+/** POST /api/xianxia/characters/:id/unequip — 卸下物品 */
+function unequipItem(req, res) {
+  var character = db.prepare('SELECT id FROM xianxia_characters WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.userId);
+  if (!character) return res.status(404).json({ error: '角色不存在' });
+
+  var itemId = parseInt(req.body.itemId, 10);
+  var item = db.prepare('SELECT * FROM xianxia_items WHERE id = ? AND character_id = ?')
+    .get(itemId, character.id);
+  if (!item) return res.status(404).json({ error: '物品不存在或不属于此角色' });
+  if (!item.is_equipped) return res.status(400).json({ error: '该物品未装备' });
+
+  db.prepare('UPDATE xianxia_items SET is_equipped = 0 WHERE id = ?').run(item.id);
+  res.json({ success: true, message: '已卸下' });
+}
+
 module.exports = {
   listCharacters, createCharacter, getCharacter, updateCharacter, deleteCharacter,
   getTimeline, getWorldState, listNpcs, getLegacy,
-  processAction, settleTimer, birthNarrative, exportMD
+  processAction, settleTimer, birthNarrative, exportMD,
+  useItem,
+  travelTo,
+  refreshDiscoveredLocations,
+  getItemKnowledge,
+  equipItem,
+  unequipItem,
+  mergeDuplicateItems
 };

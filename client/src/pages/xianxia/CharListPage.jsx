@@ -11,6 +11,7 @@ export default function CharListPage() {
   const [newName, setNewName] = useState('');
   const [newGender, setNewGender] = useState('neutral');
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -118,13 +119,20 @@ export default function CharListPage() {
               </div>
             )}
             <div className="x-char-card-footer">
-              <button
-                className="btn-danger-link"
-                onClick={(e) => handleDelete(e, c)}
-                disabled={deletingId === c.id}
-              >
-                {deletingId === c.id ? '删除中…' : '删除'}
-              </button>
+              {confirmDeleteId === c.id ? (
+                <span className="x-delete-confirm">
+                  <span style={{fontSize:11,color:"var(--color-seal)"}}>确定删除？</span>
+                  <button className="btn-danger-link" onClick={() => handleDelete(c.id)} disabled={deletingId === c.id}>确认</button>
+                  <button className="btn-outline btn-sm" onClick={(e) => {e.stopPropagation(); setConfirmDeleteId(null);}}>取消</button>
+                </span>
+              ) : (
+                <button
+                  className="btn-danger-link"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(c.id); }}
+                >
+                  删除
+                </button>
+              )}
             </div>
           </div>
         ))}
