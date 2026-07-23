@@ -184,9 +184,9 @@ export default function MainPage() {
       stickToBottom.current = true;
       // 地点情境化选项：行动返回 options 优先，此处作兜底
       setLocationOptions(res.location_options || []);
-      // 建议选项：取最近一条带选项的叙事；没有则用地名情境选项兜底
-      const latestWithOptions = [...tlRes.events].reverse().find(e => parseOptions(e.options));
-      setSuggestions(parseOptions(latestWithOptions?.options) || res.location_options || []);
+      // 建议选项：以最新一条叙事为准——它有选项用它的，没有才用地名情境兜底（避免旧叙事的选项张冠李戴）
+      const latestNarrative = [...tlRes.events].reverse().find(e => e.event_type === 'narrative');
+      setSuggestions(parseOptions(latestNarrative?.options) || res.location_options || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }

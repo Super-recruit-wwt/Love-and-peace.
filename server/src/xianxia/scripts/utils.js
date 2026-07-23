@@ -1,5 +1,7 @@
 // 剧本共享工具
 
+const { db } = require('../../db');
+
 const CN_NUM = { '半': 0.5, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
 
 function parseJson(val, fallback) {
@@ -161,6 +163,20 @@ function optionsForLocation(character) {
     return ['打听消息', '寻找落脚处', '坊市交易'];
   }
   if (/宗|门|寺|阁|谷|山|宫|殿|教|观/.test(loc)) {
+    // 已拜入此山门的修士（学过本宗功法即视为门人）不再建议"拜入宗门"，改给门人选项
+    const learned = parseJson(character && character.learned_techniques, []);
+    const names = learned.map(e => e && e.name).filter(Boolean);
+    if (names.length > 0) {
+      try {
+        const rows = db.prepare(
+          `SELECT DISTINCT json_extract(metadata, '$.faction') AS f FROM xianxia_items
+           WHERE character_id IS NULL AND item_type = 'technique' AND name IN (${names.map(() => '?').join(',')})`
+        ).all(...names);
+        if (rows.some(r => r.f && loc.includes(r.f))) {
+          return ['传功堂参悟功法', '拜见诸位师长', '在附近修炼'];
+        }
+      } catch { /* 查询失败按非门人处理 */ }
+    }
     return ['拜入宗门', '打听消息', '在附近修炼'];
   }
   return ['探索四周', '修炼', '采集材料'];

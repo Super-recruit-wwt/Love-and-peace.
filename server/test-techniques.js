@@ -859,6 +859,46 @@ console.log('\n[19] 纪元大事记');
   }
 }
 
+// ---------- 20. 行动选项与叙事关联 ----------
+console.log('\n[20] 行动选项与叙事关联');
+{
+  const llm = require('./src/xianxia/llm');
+  const scriptUtils = require('./src/xianxia/scripts/utils');
+
+  // 标记解析：半角/全角/全角竖线/带序号
+  const o1 = llm.parseOptionsMarker('正文。【OPTIONS：查看兽骨|沿溪而上|回宗门报信】');
+  check('全角【OPTIONS：】解析', o1 && o1.length === 3 && o1[0] === '查看兽骨', JSON.stringify(o1));
+  const o2 = llm.parseOptionsMarker('正文。[OPTIONS: 查看兽骨|沿溪而上]');
+  check('半角 [OPTIONS:] 解析', o2 && o2.length === 2 && o2[1] === '沿溪而上', JSON.stringify(o2));
+  const o3 = llm.parseOptionsMarker('正文【OPTIONS：① 查看兽骨｜② 设伏等候】');
+  check('全角竖线与序号清洗', o3 && o3.length === 2 && o3[0] === '查看兽骨' && o3[1] === '设伏等候', JSON.stringify(o3));
+  check('无标记返回 null', llm.parseOptionsMarker('没有标记的正文') === null);
+
+  // 剧本选项合并：LLM 上下文选项优先，功法类功能选项（《…》）保留；LLM 缺项退回静态
+  const m1 = llm.mergeScriptOptions(['查看兽骨', '设伏等候'], ['继续攀谈', '转修《太虚引气术》']);
+  check('合并：上下文优先且保留功法功能项', m1.length === 3 && m1[0] === '查看兽骨' && m1[2] === '转修《太虚引气术》', JSON.stringify(m1));
+  const m2 = llm.mergeScriptOptions(['甲', '乙', '丙', '丁'], ['转修《甲功》', '施展《乙术》']);
+  check('合并：上限 4 条且功能项不被挤掉', m2.length === 4 && m2[2] === '转修《甲功》' && m2[3] === '施展《乙术》', JSON.stringify(m2));
+  const m3 = llm.mergeScriptOptions(null, ['继续探索', '回去休整']);
+  check('LLM 缺项退回剧本静态选项', m3.length === 2 && m3[0] === '继续探索', JSON.stringify(m3));
+  const m4 = llm.mergeScriptOptions(['转修《太虚引气术》'], ['转修《太虚引气术》']);
+  check('合并：功能项去重', m4.length === 1, JSON.stringify(m4));
+
+  // 兜底选项门派感知：学过本宗功法即门人，不再建议拜入宗门
+  const sectTpl = techniques.listTemplates().find(t => t.faction);
+  check('种子存在带门派功法', !!sectTpl);
+  if (sectTpl) {
+    const memberChar = fakeChar({
+      current_location: `中州-${sectTpl.faction}`,
+      learned_techniques: JSON.stringify([{ name: sectTpl.name, depth: 0, exp: 0, main: true }]),
+    });
+    const optsM = scriptUtils.optionsForLocation(memberChar);
+    check('本宗门人不再显示拜入宗门', !optsM.includes('拜入宗门'), JSON.stringify(optsM));
+    const outsider = fakeChar({ current_location: `中州-${sectTpl.faction}` });
+    check('非门人仍显示拜入宗门', scriptUtils.optionsForLocation(outsider).includes('拜入宗门'));
+  }
+}
+
 pillTestDone.catch(e => { console.error('丹药测试异常:', e && e.message); });
 // IIFE 主体同步执行完毕，此处 pass/fail 已是最终值
 console.log(`\n结果：${pass} 通过，${fail} 失败`);

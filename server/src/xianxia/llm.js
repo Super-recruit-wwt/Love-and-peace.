@@ -241,11 +241,26 @@ function buildRewards(outcome) {
   return rewards;
 }
 
+/**
+ * 合并剧本通道选项：LLM 上下文选项优先；剧本的功法类功能选项（含《…》的转修/参悟/施展等，
+ * 点击后须精确命中剧本路由）始终保留。llmOptions 为空时原样退回剧本静态选项。
+ */
+function mergeScriptOptions(llmOptions, staticOptions) {
+  const statik = (staticOptions || []).filter(Boolean);
+  if (!llmOptions || llmOptions.length === 0) return statik.slice(0, 4);
+  // 功能项先占位（已在 LLM 选项中的不重复），LLM 选项用剩余名额——功能项永不被挤掉
+  const functional = statik.filter(o => /《.+》/.test(o) && !llmOptions.includes(o)).slice(0, 4);
+  return [...llmOptions.slice(0, Math.max(0, 4 - functional.length)), ...functional];
+}
+
+/** OPTIONS 标记统一正则：兼容半角 [OPTIONS: …] 与全角 【OPTIONS：…】、全角竖线 */
+const OPTIONS_MARKER_STRIP_RE = /\s*[\[【]\s*OPTIONS\s*[:：][^\]】]*[\]】]\s*/gi;
+
 /** 剔除一切隐藏标记（scripted 通道不信任 LLM 输出的任何标记） */
 function stripMarkers(text) {
   return (text || '')
     .replace(/\s*\[TIMER:\s*(breakthrough|crafting)\s*:\s*\d{1,3}\s*\]\s*/gi, '')
-    .replace(/\s*\[OPTIONS:[^\]]*\]\s*/gi, '')
+    .replace(OPTIONS_MARKER_STRIP_RE, '')
     .replace(/\s*\[TIME:[^\]]*\]\s*/gi, '')
     .trim();
 }
@@ -402,11 +417,17 @@ async function processScripted(openai, character, userInput, { script, params })
   result.options = withBreakthroughOption(afterChar, result.options);
   if (result.options.length === 0) result.options = null;
 
-  // 第三层：LLM 叙事包装（失败兜底剧本白描文本，行动照常完成）
+  // 第三层：LLM 叙事包装（失败兜底剧本白描文本与剧本静态选项，行动照常完成）
+  // 同一次调用顺带产出贴合叙事的上下文选项；功法类功能选项（含《…》）始终保留
   let narrative = null;
   if (!result.died) {
     try {
-      narrative = await renderScriptedNarrative(openai, character, userInput, outcome);
+      const raw = await renderScriptedNarrative(openai, character, userInput, outcome);
+      const llmOptions = raw ? parseOptionsMarker(raw) : null;
+      narrative = raw ? stripMarkers(raw) : null;
+      if (llmOptions) {
+        result.options = withBreakthroughOption(afterChar, mergeScriptOptions(llmOptions, outcome.options));
+      }
     } catch (err) {
       console.error(`剧本叙事渲染失败 [${script.id}]，使用白描兜底:`, err.message);
       narrative = null;
@@ -458,17 +479,44 @@ ${prelude}
 - 结果、成败、数值、收益必须与给定完全一致，不得更改
 - 不得添加情节转折、意外发现、额外收益、新 NPC 的关键行为
 - 紧接前情往下写，不得重复前情已描写过的场景、意象和句式；本次叙事必须把局面推进到新状态
-- 第三人称，仙侠小说口吻，100-150 字，只写这一件事`,
+- 第三人称，仙侠小说口吻，100-150 字，只写这一件事
+- 正文结束后另起一行输出后续行动建议标记：[OPTIONS: 选项一|选项二|选项三]——必须是这段叙事的直接延续，紧扣叙事中出现的具体人物/地点/事件/物品，禁止"修炼""继续"这类泛泛建议，每个选项 4-12 字`,
       },
     ],
     temperature: 0.75,
     max_tokens: 400,
   });
 
-  return stripMarkers(response.choices[0].message.content);
+  return response.choices[0].message.content;
 }
 
 // ---------- 自由叙事通道（保留现有标记协议） ----------
+
+/**
+ * 叙事已生成但 OPTIONS 标记缺失时的补偿：用叙事内容二次生成上下文选项。
+ * 只输出标记行，由 parseOptionsMarker 解析；失败返回 null（调用方再退回地点通用项）。
+ */
+async function generateContextualOptions(openai, character, userInput, narrative) {
+  const response = await openai.chat.completions.create({
+    model: MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: '你是修仙游戏的行动建议生成器。根据给出的叙事，提供 3 个玩家下一步可采取的具体行动。'
+          + '要求：必须是这段叙事的直接延续，紧扣叙事中出现的具体人物/地点/事件/物品；'
+          + '禁止"修炼""继续""打坐"这类与叙事无关的泛泛建议；每个选项 4-12 字。'
+          + '只输出一行标记，不要输出任何其他内容：[OPTIONS: 选项一|选项二|选项三]',
+      },
+      {
+        role: 'user',
+        content: `地点：${character.current_location}\n玩家的行动：${userInput}\n叙事：${String(narrative).slice(-400)}`,
+      },
+    ],
+    temperature: 0.7,
+    max_tokens: 100,
+  });
+  return parseOptionsMarker(response.choices[0].message.content || '');
+}
 
 async function processFreeNarrative(openai, character, userInput) {
   const characterId = character.id;
@@ -521,13 +569,20 @@ async function processFreeNarrative(openai, character, userInput) {
 
   // 解析隐藏标记，并从展示文本中剔除
   const timerTriggered = parseTimerMarker(narrative);
-  const options = parseOptionsMarker(narrative);
+  let options = parseOptionsMarker(narrative);
   const timeSpent = parseTimeMarker(narrative);
   narrative = narrative
     .replace(/\s*\[TIMER:\s*(breakthrough|crafting)\s*:\s*\d{1,3}\s*\]\s*/gi, '')
-    .replace(/\s*\[OPTIONS:[^\]]*\]\s*/gi, '')
+    .replace(OPTIONS_MARKER_STRIP_RE, '')
     .replace(/\s*\[TIME:[^\]]*\]\s*/gi, '')
     .trim();
+
+  // LLM 漏标/格式偏差导致无选项时，用叙事内容二次生成上下文选项（不再直接退回地点通用项）
+  if (!options) {
+    try {
+      options = await generateContextualOptions(openai, character, userInput, narrative);
+    } catch (e) { console.error('补充生成上下文选项失败:', e.message); }
+  }
 
   // 耗时（天）：无标记或解析失败时保守默认 1 天
   const elapsedDays = timeSpent ? timeSpent.days : 1;
@@ -782,14 +837,14 @@ function parseTimerMarker(narrative) {
 }
 
 /**
- * 解析 LLM 叙事末尾的建议选项标记：[OPTIONS: 选项一|选项二|选项三]
+ * 解析 LLM 叙事末尾的建议选项标记，兼容半角 [OPTIONS: 选项一|选项二] 与全角 【OPTIONS：选项一｜选项二】
  * 返回字符串数组（2-4 个，单个最长 30 字），无标记返回 null。
  */
 function parseOptionsMarker(narrative) {
-  const m = narrative.match(/\[OPTIONS:([^\]]*)\]/i);
+  const m = narrative.match(/[\[【]\s*OPTIONS\s*[:：]\s*([^\]】]*)[\]】]/i);
   if (!m) return null;
   const options = m[1]
-    .split('|')
+    .split(/[|｜]/)
     .map(s => s.trim().replace(/^[\d①②③④⑤.\s、]+/, '').trim())
     .filter(s => s.length > 0)
     .slice(0, 4)
@@ -869,4 +924,5 @@ module.exports = {
   parseTimeMarker,
   formatGameAge,
   generateTravelNarrative,
+  mergeScriptOptions,
 };
