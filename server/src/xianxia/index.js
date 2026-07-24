@@ -15,6 +15,8 @@ const techniques = require('./techniques');
 // ==================== 简单 per-user 频率限制（内存计数） ====================
 
 const rateBuckets = new Map(); // key -> number[] (timestamps)
+const MAX_RATE_BUCKETS = 10000;
+const MAX_BUCKET_SIZE = 20; // 硬上限：单桶最多 20 条记录，防放大攻击
 
 function rateAllow(key, max, windowMs) {
   const now = Date.now();
@@ -24,13 +26,19 @@ function rateAllow(key, max, windowMs) {
     return false;
   }
   arr.push(now);
-  rateBuckets.set(key, arr);
+  rateBuckets.set(key, arr.slice(-MAX_BUCKET_SIZE)); // 硬截断
   return true;
 }
 
 // 定期清理过期桶，避免内存缓慢增长
 setInterval(() => {
   const now = Date.now();
+  let keys = [...rateBuckets.keys()];
+  // 超容时优先删除最旧的桶
+  if (keys.length > MAX_RATE_BUCKETS) {
+    const toDelete = keys.length - MAX_RATE_BUCKETS;
+    for (let i = 0; i < toDelete; i++) rateBuckets.delete(keys[i]);
+  }
   for (const [key, arr] of rateBuckets) {
     const kept = arr.filter(t => now - t < 15 * 60 * 1000);
     if (kept.length === 0) rateBuckets.delete(key);
@@ -51,6 +59,29 @@ function enqueue(characterId, task) {
 }
 
 // ==================== 计时器工具（统一 ISO 带 Z 格式读写） ====================
+
+/** 共用死亡判定与记录 —— 多处路径（寿元、伤重、突破陨落）共享同一流程 */
+function applyCharacterDeath(characterId, { cause, narrative, legacyType }) {
+  const freshChar = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(characterId);
+  if (!freshChar || freshChar.status !== 'active') return null;
+  const cultivation = JSON.parse(freshChar.cultivation_paths || '{}');
+  const finalCultivation = Object.values(cultivation).filter(Boolean).join('、') || '未入道门';
+  db.prepare("UPDATE xianxia_characters SET status = 'dead', health = 0, updated_at = datetime('now') WHERE id = ?")
+    .run(characterId);
+  db.prepare(
+    'INSERT INTO xianxia_legacy (character_id, death_cause, death_narrative, final_cultivation, final_age, legacy_type) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(characterId, cause, narrative, finalCultivation, Math.floor(freshChar.game_age || 0), legacyType || 'other');
+  // 清除计时器
+  db.prepare(
+    "UPDATE xianxia_characters SET timer_type = NULL, timer_end_at = NULL, timer_narrative = NULL WHERE id = ?"
+  ).run(characterId);
+  // 写入死亡时间线
+  const gameTime = freshChar.game_age != null ? `${Math.floor(freshChar.game_age)}岁` : '未知';
+  db.prepare(
+    'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative) VALUES (?, ?, ?, ?)'
+  ).run(characterId, gameTime, 'death', narrative);
+  return { finalCultivation, legacyType: legacyType || 'other' };
+}
 
 function getTimerRemaining(character) {
   if (!character.timer_end_at || !character.timer_type) return null;
@@ -466,19 +497,17 @@ async function processAction(req, res) {
         const freshChar = db.prepare('SELECT * FROM xianxia_characters WHERE id = ?').get(characterId);
         const diedByWounds = freshChar && freshChar.status === 'active' && (freshChar.health || 0) <= 0;
         if ((r.statusChanged === 'dead' || diedByWounds) && freshChar && freshChar.status === 'active') {
-          const deathNarrative = diedByWounds
+          applyCharacterDeath(characterId, {
+            cause: diedByWounds ? '伤重不治' : (r.deathCause || '在修仙途中陨落'),
+            narrative: diedByWounds
+              ? '伤势过重，回天乏术。这一世的路走到了尽头，求道者倒在了征途之上。'
+              : (r.deathNarrative || '在修仙途中陨落。'),
+            legacyType: 'battle_death',
+          });
+          r.died = true;
+          r.deathNarrative = diedByWounds
             ? '伤势过重，回天乏术。这一世的路走到了尽头，求道者倒在了征途之上。'
             : (r.deathNarrative || '在修仙途中陨落。');
-          const cultivation = JSON.parse(freshChar.cultivation_paths || '{}');
-          const finalCultivation = Object.values(cultivation).filter(Boolean).join('、') || '未入道门';
-          db.prepare("UPDATE xianxia_characters SET status = 'dead', updated_at = datetime('now') WHERE id = ?")
-            .run(characterId);
-          db.prepare(
-            'INSERT INTO xianxia_legacy (character_id, death_cause, death_narrative, final_cultivation, final_age, legacy_type) VALUES (?, ?, ?, ?, ?, ?)'
-          ).run(characterId, diedByWounds ? '伤重不治' : (r.deathCause || '在修仙途中陨落'),
-            deathNarrative, finalCultivation, Math.floor(freshChar.game_age || 0), 'battle_death');
-          r.died = true;
-          r.deathNarrative = deathNarrative;
         }
       } catch (e) { console.error('死亡记录写入失败:', e.message); }
 

@@ -1,27 +1,16 @@
 // 修仙模拟人生 — LLM 集成核心
 // System Prompt 构造、游戏主循环、出生叙事生成、记忆压缩
 
-// 确保读取 .env（模块可能被独立加载）
-require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') });
+// 注意：若本模块被独立加载（如测试脚本），需确保 .env 已载入；
+// 通过 server/src/index.js 正常启动时，dotenv 已由 index.js 初始化。
+try { require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') }); } catch {}
 
-const OpenAI = require('openai');
 const { db } = require('../db');
 const scripts = require('./scripts');
 const npcEngine = require('./npc');
 const { isValidLocation, withBreakthroughOption, consumeBuffs, parseJson } = require('./scripts/utils');
 const techniques = require('./techniques');
-
-let client = null;
-
-function getClient() {
-  if (!client) {
-    const apiKey = process.env.LLM_API_KEY;
-    const baseURL = process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
-    if (!apiKey) throw new Error('LLM_API_KEY 环境变量未设置');
-    client = new OpenAI({ apiKey, baseURL });
-  }
-  return client;
-}
+const { getClient } = require('./llm-client');
 
 const MODEL = process.env.LLM_MODEL || 'deepseek-chat';
 
@@ -372,21 +361,14 @@ async function processScripted(openai, character, userInput, { script, params })
     ).run(characterId, gameTime, 'action', userInput);
 
     if (newLifespan <= 0) {
-      const cultivation = JSON.parse(character.cultivation_paths || '{}');
-      const finalCultivation = Object.values(cultivation).filter(Boolean).join('、') || '未入道门';
-      const deathNarrative = '寿元已尽。这一世的路走到了尽头，求道者闭上了眼睛，坐化于岁月长河之中。';
-      db.prepare(
-        `UPDATE xianxia_characters SET game_age = ?, lifespan_remaining = 0, status = 'dead',
-         timer_type = NULL, timer_end_at = NULL, timer_narrative = NULL, updated_at = datetime('now') WHERE id = ?`
-      ).run(newAge, characterId);
-      db.prepare(
-        'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative) VALUES (?, ?, ?, ?)'
-      ).run(characterId, gameTime, 'death', deathNarrative);
-      db.prepare(
-        'INSERT INTO xianxia_legacy (character_id, death_cause, death_narrative, final_cultivation, final_age, legacy_type) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(characterId, '寿元耗尽', deathNarrative, finalCultivation, Math.floor(newAge), 'natural_death');
+      const { applyCharacterDeath } = require('../xianxia/index');
+      applyCharacterDeath(characterId, {
+        cause: '寿元耗尽',
+        narrative: '寿元已尽。这一世的路走到了尽头，求道者闭上了眼睛，坐化于岁月长河之中。',
+        legacyType: 'natural_death',
+      });
       result.died = true;
-      result.deathNarrative = deathNarrative;
+      result.deathNarrative = '寿元已尽。这一世的路走到了尽头，求道者闭上了眼睛，坐化于岁月长河之中。';
     } else {
       db.prepare(
         `UPDATE xianxia_characters SET game_age = ?, lifespan_remaining = ?, updated_at = datetime('now') WHERE id = ?`
@@ -554,11 +536,19 @@ async function processFreeNarrative(openai, character, userInput) {
   const sceneType = detectSceneType(userInput);
   const systemPrompt = buildXianxiaPrompt(character, sceneType);
 
-  // 获取近期叙事
+  // 获取近期叙事（限制总字符数防 token 超限）
   const recent = db.prepare(
     'SELECT narrative FROM xianxia_timeline WHERE character_id = ? ORDER BY id DESC LIMIT 20'
   ).all(characterId);
-  const recentHistory = recent.reverse().map(r => r.narrative).join('\n\n');
+  const MAX_RECENT_CHARS = 3000;
+  let recentHistory = '';
+  let charCount = 0;
+  for (const r of recent.reverse()) {
+    const s = String(r.narrative).slice(0, 200);
+    if (charCount + s.length > MAX_RECENT_CHARS) break;
+    recentHistory = recentHistory ? recentHistory + '\n\n' + s : s;
+    charCount += s.length + 2;
+  }
 
   // 获取远期记忆摘要
   const distantMemories = getDistantMemories(characterId);
@@ -636,26 +626,14 @@ async function processFreeNarrative(openai, character, userInput) {
     ).run(characterId, gameTime, 'narrative', narrative, result.options ? JSON.stringify(result.options) : null);
 
     if (newLifespan <= 0) {
-      // 寿元耗尽：死亡流程
-      const cultivation = JSON.parse(character.cultivation_paths || '{}');
-      const finalCultivation = Object.values(cultivation).filter(Boolean).join('、') || '未入道门';
-      const deathNarrative = '寿元已尽。这一世的路走到了尽头，求道者闭上了眼睛，坐化于岁月长河之中。';
-
-      db.prepare(
-        `UPDATE xianxia_characters SET game_age = ?, lifespan_remaining = 0, status = 'dead',
-         timer_type = NULL, timer_end_at = NULL, timer_narrative = NULL, updated_at = datetime('now') WHERE id = ?`
-      ).run(newAge, characterId);
-
-      db.prepare(
-        'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative) VALUES (?, ?, ?, ?)'
-      ).run(characterId, gameTime, 'death', deathNarrative);
-
-      db.prepare(
-        'INSERT INTO xianxia_legacy (character_id, death_cause, death_narrative, final_cultivation, final_age, legacy_type) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(characterId, '寿元耗尽', deathNarrative, finalCultivation, Math.floor(newAge), 'natural_death');
-
+      const { applyCharacterDeath } = require('../xianxia/index');
+      applyCharacterDeath(characterId, {
+        cause: '寿元耗尽',
+        narrative: '寿元已尽。这一世的路走到了尽头，求道者闭上了眼睛，坐化于岁月长河之中。',
+        legacyType: 'natural_death',
+      });
       result.died = true;
-      result.deathNarrative = deathNarrative;
+      result.deathNarrative = '寿元已尽。这一世的路走到了尽头，求道者闭上了眼睛，坐化于岁月长河之中。';
     } else {
       db.prepare(
         `UPDATE xianxia_characters SET game_age = ?, lifespan_remaining = ?, updated_at = datetime('now') WHERE id = ?`

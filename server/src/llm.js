@@ -7,7 +7,12 @@ function getClient() {
     const apiKey = process.env.LLM_API_KEY;
     const baseURL = process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
     if (!apiKey) throw new Error('LLM_API_KEY 环境变量未设置');
-    client = new OpenAI({ apiKey, baseURL });
+    client = new OpenAI({
+      apiKey,
+      baseURL,
+      timeout: 30000,
+      maxRetries: 1,
+    });
   }
   return client;
 }

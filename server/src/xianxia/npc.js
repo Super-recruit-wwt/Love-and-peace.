@@ -1,21 +1,12 @@
-// 修仙模拟人生 — NPC 交互引擎
+// NPC 交互引擎
 
 const { db } = require('../db');
 
 // 关系类型集合
 const RELATION_TYPES = [
-  'stranger',    // 陌生人
-  'acquaintance', // 熟人
-  'friend',      // 朋友
-  'close_friend', // 挚友
-  'master',      // 师父
-  'disciple',    // 徒弟
-  'lover',       // 道侣
-  'rival',       // 竞争者
-  'enemy',       // 仇敌
-  'blood_enemy', // 血仇
-  'debtor',      // 欠情者（对方欠你）
-  'creditor',    // 施恩者（你欠对方）
+  'stranger', 'acquaintance', 'friend', 'close_friend',
+  'master', 'disciple', 'lover', 'rival',
+  'enemy', 'blood_enemy', 'debtor', 'creditor',
 ];
 
 /**
@@ -39,44 +30,52 @@ function getOrCreateRelation(characterId, npcId) {
 }
 
 /**
- * 根据叙事内容调整 NPC 好感度
- * 返回变化量和原因描述
+ * 根据叙事内容分析对 NPC 好感度的影响。
+ * 改进：使用词边界匹配 + 否定句排除，减少误判。
  */
 function analyzeAffectionChange(narrative, userInput) {
   const deltas = [];
-  const text = (userInput + ' ' + narrative).toLowerCase();
+  const text = userInput + ' ' + narrative;
 
-  // 正面行为
-  const positivePhrases = [
-    { pattern: /帮助|救助|救了|援手|施以援手/, delta: 15, reason: '施以援手' },
-    { pattern: /赠送|送礼|赠予|相赠/, delta: 10, reason: '赠送礼物' },
-    { pattern: /道谢|感谢|感激|致谢/, delta: 5, reason: '表达感激' },
-    { pattern: /拜访|问候|看望|探访/, delta: 3, reason: '主动探望' },
-    { pattern: /道歉|赔礼|认错|请罪/, delta: 8, reason: '诚恳道歉' },
-    { pattern: /保护|守护|护住|挡在/, delta: 20, reason: '舍身保护' },
-    { pattern: /坦白|承认|如实相告|说出真相/, delta: 12, reason: '坦诚相待' },
+  // 正向行为：pattern 中 (?<![不没别]) 排除否定前缀，"帮" → 匹配 "帮助" 但不匹配 "不帮"
+  const positiveRules = [
+    { pattern: /帮(助|忙|衬|手)/u, delta: 10, reason: '给予帮助' },
+    { pattern: /救(了|助|下|回|援)/u, delta: 15, reason: '施以援手' },
+    { pattern: /赠(送|予|礼)|送(礼|给)/u, delta: 10, reason: '赠送礼物' },
+    { pattern: /感?谢|致谢|感激/u, delta: 5, reason: '表达感激' },
+    { pattern: /拜访|问候|看望|探望/u, delta: 3, reason: '主动探望' },
+    { pattern: /道歉|赔礼|认错|请罪/u, delta: 8, reason: '诚恳道歉' },
+    { pattern: /保(护|住|佑)|(舍身|以身).{0,3}(护|挡)/u, delta: 20, reason: '舍身保护' },
+    { pattern: /坦(白|诚)|如(实|数)相告/u, delta: 12, reason: '坦诚相待' },
   ];
 
   // 负面行为
-  const negativePhrases = [
-    { pattern: /欺骗|撒谎|瞒|编造|假话/, delta: -15, reason: '欺骗' },
-    { pattern: /背叛|出卖|告密|出卖了你/, delta: -30, reason: '背叛' },
-    { pattern: /偷袭|暗算|背后下手|暗中/, delta: -25, reason: '偷袭暗算' },
-    { pattern: /辱骂|嘲弄|讥笑|讽刺|挖苦/, delta: -10, reason: '言语侮辱' },
-    { pattern: /偷|窃|盗|顺手牵羊/, delta: -20, reason: '偷窃' },
-    { pattern: /毁约|食言|翻脸|翻脸不认/, delta: -18, reason: '背信弃义' },
-    { pattern: /威胁|胁迫|逼|要挟/, delta: -12, reason: '威胁胁迫' },
+  const negativeRules = [
+    { pattern: /欺(骗|瞒|诈)|撒谎/u, delta: -15, reason: '欺骗' },
+    { pattern: /背(叛|弃)|出卖/u, delta: -30, reason: '背叛' },
+    { pattern: /偷袭|暗算|(?<![不没])背后/u, delta: -25, reason: '偷袭暗算' },
+    { pattern: /辱骂|嘲弄|讥笑|讽刺|挖苦/u, delta: -10, reason: '言语侮辱' },
+    { pattern: /偷(窃|盗|取|走)|(?<![随意])盗(取|走)/u, delta: -20, reason: '偷窃' },
+    { pattern: /毁约|食言|翻脸/u, delta: -18, reason: '背信弃义' },
+    { pattern: /威胁|(威)?逼(迫)?/u, delta: -12, reason: '威胁胁迫' },
   ];
 
-  for (const { pattern, delta, reason } of positivePhrases) {
+  for (const { pattern, delta, reason } of positiveRules) {
+    // 检查是否被否定词修饰（"没帮"、"不帮"、"别帮" → 不计入正面向）
+    const match = text.match(pattern);
+    if (match) {
+      const before = text.slice(Math.max(0, match.index - 3), match.index);
+      if (!/[不没别未无]/.test(before)) deltas.push({ delta, reason });
+    }
+  }
+
+  for (const { pattern, delta, reason } of negativeRules) {
     if (pattern.test(text)) deltas.push({ delta, reason });
   }
 
-  for (const { pattern, delta, reason } of negativePhrases) {
-    if (pattern.test(text)) deltas.push({ delta, reason });
-  }
-
-  return deltas;
+  // 限制单次分析最多 3 条变化，优先绝对值大的
+  deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  return deltas.slice(0, 3);
 }
 
 /**
@@ -102,14 +101,16 @@ function applyAffectionChange(characterId, npcId, delta, reason) {
 function updateRelationTypes(characterId, npcId, affection, existingTypes) {
   let types = [...existingTypes];
 
-  // 移除旧的状态标签
+  // 移除旧的基于好感度的状态标签
   types = types.filter(t => !['stranger', 'acquaintance', 'friend', 'close_friend'].includes(t));
 
   // 根据好感度添加新标签
   if (affection >= 80) types.push('close_friend');
   else if (affection >= 40) types.push('friend');
   else if (affection >= 10) types.push('acquaintance');
-  else if (affection <= -80) types = types.filter(t => t !== 'enemy'); // 变成血仇
+  else types.push('stranger');
+
+  if (affection <= -80) types.push('blood_enemy');
   else if (affection <= -50) types.push('enemy');
 
   // 去重
@@ -162,4 +163,3 @@ module.exports = {
   applyAffectionChange,
   getNpcBehaviorPrompt,
 };
-

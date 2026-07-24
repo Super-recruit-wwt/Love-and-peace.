@@ -11,8 +11,11 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 function safeAddColumn(table, column, definition) {
+  // 白名单校验：防止 SQL 注入——表名和列名仅允许字母/数字/下划线
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) throw new Error(`Invalid table name: ${table}`);
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)) throw new Error(`Invalid column name: ${column}`);
   try {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    db.exec(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`);
   } catch (err) {
     // 列已存在 — 忽略
     if (!err.message.includes('duplicate')) throw err;

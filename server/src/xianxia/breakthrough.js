@@ -200,16 +200,12 @@ async function completeBreakthrough(characterId) {
 
     // 陨落：角色死亡 + 传世记录 + 死亡时间线
     if (results.died) {
-      const finalCultivation = Object.values(JSON.parse(character.cultivation_paths || '{}'))
-        .filter(Boolean).join('、') || '未入道门';
-      db.prepare("UPDATE xianxia_characters SET status = 'dead', health = 0, updated_at = datetime('now') WHERE id = ?")
-        .run(characterId);
-      db.prepare(
-        'INSERT INTO xianxia_legacy (character_id, death_cause, death_narrative, final_cultivation, final_age, legacy_type) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(characterId, '突破陨落', results.narrative, finalCultivation, Math.floor(character.game_age || 0), 'breakthrough_death');
-      db.prepare(
-        'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative) VALUES (?, ?, ?, ?)'
-      ).run(characterId, gameTime, 'death', results.narrative);
+      const { applyCharacterDeath } = require('../xianxia/index');
+      applyCharacterDeath(characterId, {
+        cause: '突破陨落',
+        narrative: results.narrative,
+        legacyType: 'breakthrough_death',
+      });
     }
 
     const settleOptions = results.died
@@ -344,8 +340,16 @@ function resolveBreakthroughResult(character, timerType) {
       db.prepare('DELETE FROM xianxia_items WHERE id = ?').run(pill.id);
       pillUsed = pillName;
       baseRate = Math.min(0.95, baseRate + bonus);
+      // 记录丹药消耗到时间线
+      db.prepare(
+        'INSERT INTO xianxia_timeline (character_id, game_time, event_type, narrative) VALUES (?, ?, ?, ?)'
+      ).run(character.id, formatGameAge(character.game_age), 'item_use',
+        `突破在即，你服下${pillName}，药力化作暖流沉入丹田，护住心脉。`);
     }
   }
+
+  // 渡劫阶段死亡风险警告
+  const deathWarning = toBig === '渡劫' ? '数百年苦修如今尽系于一劫——渡劫天险，陨落之危并非空谈。' : '';
   const pillPrefix = pillUsed
     ? `你预先服下一枚${pillUsed}，药力化作暖流沉入丹田，护住心脉，灵力运转愈发圆融。`
     : '';
@@ -358,7 +362,7 @@ function resolveBreakthroughResult(character, timerType) {
     return withDepthExp({
       success: true,
       crossBigRealm,
-      narrative: narrative + gainsText,
+      narrative: narrative + gainsText + (deathWarning ? ' ' + deathWarning : ''),
       newCultivation: advanceCultivation(cultivation, timerType),
       newLifespan: character.lifespan_remaining + 50 + Math.floor(Math.random() * 100),
       newQiMax: Math.round(qiMaxForStage(toStage) * techniques.qiMaxMult(character)),
@@ -371,7 +375,7 @@ function resolveBreakthroughResult(character, timerType) {
     return withDepthExp({
       success: true,
       crossBigRealm,
-      narrative: `${pillPrefix}突破几乎失败——最后关头灵力稍有不继，你勉强在${toStage}站稳了脚跟，但经脉隐隐作痛。未来一段时间，你需要静养恢复。${gainsText}`,
+      narrative: `${pillPrefix}突破几乎失败——最后关头灵力稍有不继，你勉强在${toStage}站稳了脚跟，但经脉隐隐作痛。未来一段时间，你需要静养恢复。${gainsText}${deathWarning ? ' ' + deathWarning : ''}`,
       newCultivation: advanceCultivation(cultivation, timerType),
       newQiMax: Math.round(qiMaxForStage(toStage) * techniques.qiMaxMult(character)),
       healthChange: -40,
@@ -465,18 +469,9 @@ function nextStrangeStage(current) {
 
 function nextXianDaoStage(current) {
   if (!current) return '炼气初期';
-  const stages = ['炼气初期', '炼气中期', '炼气后期', '炼气圆满',
-    '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
-    '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
-    '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
-    '化神初期', '化神中期', '化神后期', '化神圆满',
-    '炼虚初期', '炼虚中期', '炼虚后期', '炼虚圆满',
-    '合体初期', '合体中期', '合体后期', '合体圆满',
-    '大乘初期', '大乘中期', '大乘后期', '大乘圆满',
-    '渡劫初期', '渡劫中期', '渡劫后期', '渡劫圆满',
-    '飞升'];
-  const idx = stages.indexOf(current);
-  if (idx >= 0 && idx < stages.length - 1) return stages[idx + 1];
+  const { XIAN_STAGES } = require('./scripts/utils');
+  const idx = XIAN_STAGES.indexOf(current);
+  if (idx >= 0 && idx < XIAN_STAGES.length - 1) return XIAN_STAGES[idx + 1];
   return current;
 }
 

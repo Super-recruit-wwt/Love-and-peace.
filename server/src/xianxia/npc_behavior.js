@@ -63,7 +63,35 @@ const BEHAVIOR_TEMPLATES = {
   },
 };
 
-var recentBehaviors = new Map();
+// 全局防重复记录：Map<characterId, Map<npcId, Set<behaviorKey>>>
+// 5 分钟后自动清除单个条目；1000 次触发后全量清理死亡角色
+const recentBehaviors = new Map();
+let behaviorCounter = 0;
+
+/** 惰性清理：删除已不存在的角色条目 + 清理单角色内超 5 条的行为记录 */
+function lazyCleanup(characterId) {
+  behaviorCounter++;
+  // 全量清理：每 1000 次触发一次
+  if (behaviorCounter >= 1000) {
+    behaviorCounter = 0;
+    for (const [cid] of recentBehaviors) {
+      const exists = db.prepare('SELECT 1 FROM xianxia_characters WHERE id = ?').get(cid);
+      if (!exists) recentBehaviors.delete(cid);
+    }
+    const maxSize = 500;
+    if (recentBehaviors.size > maxSize) {
+      const keys = [...recentBehaviors.keys()].slice(0, recentBehaviors.size - maxSize);
+      for (const k of keys) recentBehaviors.delete(k);
+    }
+  }
+  // 单角色内清理：保持行为记录 ≤ 5 条
+  const npcMap = recentBehaviors.get(characterId);
+  if (npcMap && npcMap.size > 5) {
+    const keys = [...npcMap.keys()].slice(0, npcMap.size - 5);
+    for (const k of keys) npcMap.delete(k);
+    if (npcMap.size === 0) recentBehaviors.delete(characterId);
+  }
+}
 
 function triggerNpcBehavior(characterId) {
   if (Math.random() > 0.08) return { triggered: false };
@@ -80,22 +108,12 @@ function triggerNpcBehavior(characterId) {
      WHERE xr.character_id = ? AND xn.is_alive = 1`
   ).all(characterId);
 
-  if (Math.random() < 0.1) {
-    for (var [cid, npcMap] of recentBehaviors) {
-      for (var [npcId, types] of npcMap) {
-        if (types.size > 3) npcMap.delete(npcId);
-      }
-      if (npcMap.size === 0) recentBehaviors.delete(cid);
-    }
-  }
-
   if (rels.length === 0) return { triggered: false };
 
   // 加权随机选NPC
   const weighted = [];
   for (const rel of rels) {
     const types = JSON.parse(rel.relation_types || '[]');
-    // 检查最近30天是否已触发过（简单策略：跳过有最近行为记录的）
     for (const [key, tmpl] of Object.entries(BEHAVIOR_TEMPLATES)) {
       if (tmpl.condition({ ...rel, relation_types: types }, character)) {
         weighted.push({ rel, types, tmpl, key, weight: tmpl.weight });
@@ -115,10 +133,11 @@ function triggerNpcBehavior(characterId) {
   }
   if (!chosen) chosen = weighted[weighted.length - 1];
 
-  var recentMap = recentBehaviors.get(characterId);
-  if (recentMap) {
-    var npcSet = recentMap.get(chosen.rel.npc_id);
-    if (npcSet && npcSet.has(chosen.key)) return { triggered: false };
+  // 防重复：5 分钟内同一 NPC 同一行为不重复触发
+  const npcMap = recentBehaviors.get(characterId);
+  if (npcMap) {
+    const behaviorSet = npcMap.get(chosen.rel.npc_id);
+    if (behaviorSet && behaviorSet.has(chosen.key)) return { triggered: false };
   }
 
   const npc = { name: chosen.rel.name, identity: chosen.rel.identity, faction: chosen.rel.faction };
@@ -137,14 +156,21 @@ function triggerNpcBehavior(characterId) {
   // 应用属性变化
   const deltas = chosen.tmpl.effects.deltas || {};
 
+  // 记录防重复（5 分钟后清除）
   if (!recentBehaviors.has(characterId)) recentBehaviors.set(characterId, new Map());
-  var cm2 = recentBehaviors.get(characterId);
-  if (!cm2.has(chosen.rel.npc_id)) cm2.set(chosen.rel.npc_id, new Set());
-  cm2.get(chosen.rel.npc_id).add(chosen.key);
-  setTimeout(function() {
-    var cm3 = recentBehaviors.get(characterId);
-    if (cm3) { var s2 = cm3.get(chosen.rel.npc_id); if (s2) { s2.delete(chosen.key); if (s2.size === 0) cm3.delete(chosen.rel.npc_id); } if (cm3.size === 0) recentBehaviors.delete(characterId); }
+  const cm = recentBehaviors.get(characterId);
+  if (!cm.has(chosen.rel.npc_id)) cm.set(chosen.rel.npc_id, new Set());
+  cm.get(chosen.rel.npc_id).add(chosen.key);
+  setTimeout(() => {
+    const cm2 = recentBehaviors.get(characterId);
+    if (cm2) {
+      const s = cm2.get(chosen.rel.npc_id);
+      if (s) { s.delete(chosen.key); if (s.size === 0) cm2.delete(chosen.rel.npc_id); }
+      if (cm2.size === 0) recentBehaviors.delete(characterId);
+    }
   }, 300000);
+
+  lazyCleanup(characterId);
 
   return {
     triggered: true,
