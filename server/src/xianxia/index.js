@@ -1085,17 +1085,18 @@ function getItemKnowledge(req, res) {
 
 // ==================== 物品堆叠工具 ====================
 
-/** 合并角色背包中相同名称/类型/品级的物品（减少冗余行） */
+/** 合并角色背包中相同名称/类型/品级的物品（减少冗余行）。
+ *  仅操作未装备物品，避免误吞已装备物品。 */
 function mergeDuplicateItems(characterId) {
   var duplicates = db.prepare(
-    'SELECT name, item_type, grade, COUNT(*) as cnt, SUM(quantity) as total, MIN(id) as keep_id FROM xianxia_items WHERE character_id = ? GROUP BY name, item_type, grade HAVING cnt > 1'
+    'SELECT name, item_type, grade, COUNT(*) as cnt, SUM(quantity) as total, MIN(id) as keep_id FROM xianxia_items WHERE character_id = ? AND is_equipped = 0 GROUP BY name, item_type, grade HAVING cnt > 1'
   ).all(characterId);
 
   var merged = 0;
   for (var dup of duplicates) {
     // 删除重复行（保留 ID 最小的那行）
     var rowsToDelete = db.prepare(
-      'SELECT id FROM xianxia_items WHERE character_id = ? AND name = ? AND item_type = ? AND grade = ? AND id != ?'
+      'SELECT id FROM xianxia_items WHERE character_id = ? AND name = ? AND item_type = ? AND grade = ? AND id != ? AND is_equipped = 0'
     ).all(characterId, dup.name, dup.item_type, dup.grade, dup.keep_id);
 
     for (var row of rowsToDelete) {
@@ -1120,16 +1121,22 @@ function equipItem(req, res) {
   var item = db.prepare('SELECT * FROM xianxia_items WHERE id = ? AND character_id = ?')
     .get(itemId, character.id);
   if (!item) return res.status(404).json({ error: '物品不存在或不属于此角色' });
-  // 可装备判定：类型为装备四件套，或物品自带槽位（兼容旧数据 treasure 带 slot 的情况）
-  if (!['weapon', 'armor', 'accessory', 'artifact'].includes(item.item_type) && !item.slot) {
+
+  // 可装备判定：类型为装备四件套，或物品自带标准槽位（排除 special 等特殊槽位）
+  var STANDARD_SLOTS = ['weapon', 'armor', 'accessory', 'artifact'];
+  var slot = item.slot || item.item_type;
+  if (!STANDARD_SLOTS.includes(slot) && !STANDARD_SLOTS.includes(item.item_type)) {
     return res.status(400).json({ error: '该类型物品无法装备' });
   }
+
   if (item.is_equipped) return res.status(400).json({ error: '该物品已装备' });
 
-  // 同槽位先卸下现有装备
-  var slot = item.slot || item.item_type;
-  var existing = db.prepare('SELECT id FROM xianxia_items WHERE character_id = ? AND is_equipped = 1 AND (slot = ? OR (slot IS NULL AND item_type = ?))')
-    .get(character.id, slot, item.item_type);
+  // 同槽位先卸下现有装备（仅查标准槽位，不影响 special 等其他槽位物品）
+  var existing = db.prepare(
+    `SELECT id FROM xianxia_items WHERE character_id = ? AND is_equipped = 1
+     AND (slot = ? OR (slot IS NULL AND item_type = ?))
+     AND (slot IS NULL OR slot IN ('weapon','armor','accessory','artifact'))`
+  ).get(character.id, slot, item.item_type);
   if (existing) {
     db.prepare('UPDATE xianxia_items SET is_equipped = 0 WHERE id = ?').run(existing.id);
   }

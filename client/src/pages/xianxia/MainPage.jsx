@@ -740,7 +740,12 @@ export default function MainPage() {
           <div className="x-info-separator" />
           <span className="mono-label" style={{display:'block',marginBottom:'8px'}}>装备栏</span>
           {[['weapon','武器'],['armor','防具'],['accessory','饰品'],['artifact','法宝']].map(function([slotKey, slotLabel]) {
-            var equipped = items.find(function(i) { return i.is_equipped && (i.slot || i.item_type) === slotKey; });
+            // 精确匹配：槽位 = slotKey，兼容旧数据 slot 为空时回退到 item_type
+            var equipped = items.find(function(i) {
+              if (!i.is_equipped) return false;
+              var itemSlot = i.slot || i.item_type;
+              return itemSlot === slotKey;
+            });
             return (
               <div key={slotKey} className="x-row x-item-row" style={{padding:'4px 0',position:'relative'}}>
                 <span className="mono-label" style={{fontSize:'10px',color:'var(--color-ink-3)',width:'32px',flexShrink:0}}>{slotLabel}</span>
