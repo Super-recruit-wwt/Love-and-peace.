@@ -1,34 +1,39 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import ResetPage from './pages/ResetPage';
-import VerifyPage from './pages/VerifyPage';
-import RegisterPage from './pages/RegisterPage';
-import PortalPage from './pages/PortalPage';
-import HomePage from './pages/HomePage';
-import CreatePage from './pages/CreatePage';
-import ChatPage from './pages/ChatPage';
-import SettingsPage from './pages/SettingsPage';
-import VoicesListPage from './pages/VoicesListPage';
-import VoicesNewPage from './pages/VoicesNewPage';
-import VoicesRoomPage from './pages/VoicesRoomPage';
-import XianxiaCharList from './pages/xianxia/CharListPage';
-import XianxiaBirth from './pages/xianxia/BirthPage';
-import XianxiaMain from './pages/xianxia/MainPage';
-import XianxiaProfile from './pages/xianxia/ProfilePage';
-import XianxiaMap from './pages/xianxia/MapPage';
-import XianxiaJournal from './pages/xianxia/JournalPage';
-import XianxiaJade from './pages/xianxia/JadePage';
-import XianxiaLegacy from './pages/xianxia/LegacyPage';
+import ErrorBoundary from './components/ErrorBoundary';
 import '@fontsource/noto-serif-sc/300.css';
 import '@fontsource/noto-serif-sc/400.css';
 import '@fontsource/space-grotesk/400.css';
 import '@fontsource/space-grotesk/500.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import './index.css';
+
+// Guest pages (eager-loaded for first paint)
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ResetPage from './pages/ResetPage';
+import VerifyPage from './pages/VerifyPage';
+
+// Lazy-loaded authenticated pages
+const PortalPage = React.lazy(() => import('./pages/PortalPage'));
+const HomePage = React.lazy(() => import('./pages/HomePage'));
+const CreatePage = React.lazy(() => import('./pages/CreatePage'));
+const ChatPage = React.lazy(() => import('./pages/ChatPage'));
+const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
+const VoicesListPage = React.lazy(() => import('./pages/VoicesListPage'));
+const VoicesNewPage = React.lazy(() => import('./pages/VoicesNewPage'));
+const VoicesRoomPage = React.lazy(() => import('./pages/VoicesRoomPage'));
+const XianxiaCharList = React.lazy(() => import('./pages/xianxia/CharListPage'));
+const XianxiaBirth = React.lazy(() => import('./pages/xianxia/BirthPage'));
+const XianxiaMain = React.lazy(() => import('./pages/xianxia/MainPage'));
+const XianxiaProfile = React.lazy(() => import('./pages/xianxia/ProfilePage'));
+const XianxiaMap = React.lazy(() => import('./pages/xianxia/MapPage'));
+const XianxiaJournal = React.lazy(() => import('./pages/xianxia/JournalPage'));
+const XianxiaJade = React.lazy(() => import('./pages/xianxia/JadePage'));
+const XianxiaLegacy = React.lazy(() => import('./pages/xianxia/LegacyPage'));
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -46,11 +51,7 @@ function GuestRoute({ children }) {
 
 function LoadingScreen() {
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: '16px',
-      alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: 'var(--color-paper)'
-    }}>
+    <div className="loading-screen">
       <span className="seal" aria-hidden="true">愛</span>
       <span className="mono-label">loading</span>
     </div>
@@ -64,29 +65,31 @@ function App() {
 
   return (
     <div data-theme={theme} className="app-canvas">
-      <Routes>
-        <Route path="/welcome" element={<GuestRoute><LandingPage /></GuestRoute>} />
-        <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
-        <Route path="/reset" element={<GuestRoute><ResetPage /></GuestRoute>} />
-        <Route path="/verify" element={<VerifyPage />} />
-        <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
-        <Route path="/" element={<ProtectedRoute><PortalPage /></ProtectedRoute>} />
-        <Route path="/chat" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-        <Route path="/create" element={<ProtectedRoute><CreatePage /></ProtectedRoute>} />
-        <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-        <Route path="/voices" element={<ProtectedRoute><VoicesListPage /></ProtectedRoute>} />
-        <Route path="/voices/new" element={<ProtectedRoute><VoicesNewPage /></ProtectedRoute>} />
-        <Route path="/voices/:id" element={<ProtectedRoute><VoicesRoomPage /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-        <Route path="/xianxia" element={<ProtectedRoute><XianxiaCharList /></ProtectedRoute>} />
-        <Route path="/xianxia/birth" element={<ProtectedRoute><XianxiaBirth /></ProtectedRoute>} />
-        <Route path="/xianxia/legacy" element={<ProtectedRoute><XianxiaLegacy /></ProtectedRoute>} />
-        <Route path="/xianxia/:characterId" element={<ProtectedRoute><XianxiaMain /></ProtectedRoute>} />
-        <Route path="/xianxia/:characterId/profile" element={<ProtectedRoute><XianxiaProfile /></ProtectedRoute>} />
-        <Route path="/xianxia/:characterId/map" element={<ProtectedRoute><XianxiaMap /></ProtectedRoute>} />
-        <Route path="/xianxia/:characterId/journal" element={<ProtectedRoute><XianxiaJournal /></ProtectedRoute>} />
-        <Route path="/xianxia/:characterId/jade" element={<ProtectedRoute><XianxiaJade /></ProtectedRoute>} />
-      </Routes>
+      <Suspense fallback={<LoadingScreen />}>
+        <Routes>
+          <Route path="/welcome" element={<GuestRoute><LandingPage /></GuestRoute>} />
+          <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+          <Route path="/reset" element={<GuestRoute><ResetPage /></GuestRoute>} />
+          <Route path="/verify" element={<VerifyPage />} />
+          <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+          <Route path="/" element={<ProtectedRoute><PortalPage /></ProtectedRoute>} />
+          <Route path="/chat" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/create" element={<ProtectedRoute><CreatePage /></ProtectedRoute>} />
+          <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/voices" element={<ProtectedRoute><VoicesListPage /></ProtectedRoute>} />
+          <Route path="/voices/new" element={<ProtectedRoute><VoicesNewPage /></ProtectedRoute>} />
+          <Route path="/voices/:id" element={<ProtectedRoute><VoicesRoomPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/xianxia" element={<ProtectedRoute><XianxiaCharList /></ProtectedRoute>} />
+          <Route path="/xianxia/birth" element={<ProtectedRoute><XianxiaBirth /></ProtectedRoute>} />
+          <Route path="/xianxia/legacy" element={<ProtectedRoute><XianxiaLegacy /></ProtectedRoute>} />
+          <Route path="/xianxia/:characterId" element={<ProtectedRoute><XianxiaMain /></ProtectedRoute>} />
+          <Route path="/xianxia/:characterId/profile" element={<ProtectedRoute><XianxiaProfile /></ProtectedRoute>} />
+          <Route path="/xianxia/:characterId/map" element={<ProtectedRoute><XianxiaMap /></ProtectedRoute>} />
+          <Route path="/xianxia/:characterId/journal" element={<ProtectedRoute><XianxiaJournal /></ProtectedRoute>} />
+          <Route path="/xianxia/:characterId/jade" element={<ProtectedRoute><XianxiaJade /></ProtectedRoute>} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }
@@ -95,7 +98,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

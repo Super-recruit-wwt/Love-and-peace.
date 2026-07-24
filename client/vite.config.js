@@ -12,4 +12,14 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          fonts: ['@fontsource/noto-serif-sc', '@fontsource/space-grotesk', '@fontsource/ibm-plex-mono'],
+        },
+      },
+    },
+  },
 })

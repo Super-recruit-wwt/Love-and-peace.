@@ -548,18 +548,25 @@ async function discussionReply(participant, topic, transcript, knowledge) {
   const openai = getClient();
   const model = process.env.LLM_MODEL || 'deepseek-chat';
 
+  // 长背景资料截断，防止 token 超限（保守估计 2 字符 ≈ 1 token）
+  const MAX_KNOWLEDGE_CHARS = 6000;
+  let safeKnowledge = knowledge;
+  if (knowledge && knowledge.length > MAX_KNOWLEDGE_CHARS) {
+    safeKnowledge = knowledge.slice(0, MAX_KNOWLEDGE_CHARS) + '\n\n[背景资料过长，已截断...]';
+  }
+
   let systemPrompt =
     `你是「${participant.name}」。你的性格和背景是：${participant.persona}\n` +
     `你正在参与一场多人圆桌讨论，今日议题：${topic}\n` +
     '请根据对话记录给出你的回应：直接说出内容，不要加名字前缀，不要复述别人的话。' +
     '保持你独有的视角和语言风格，可以赞同、质疑或延伸此前发言者的观点，篇幅在两三段以内。';
 
-  if (knowledge) {
+  if (safeKnowledge) {
     systemPrompt +=
       '\n\n═════════════════════\n【背景资料】\n' +
       '以下是供你参考的背景信息，请在讨论时结合这些内容：\n' +
       '═════════════════════\n' +
-      knowledge;
+      safeKnowledge;
   }
 
   const response = await openai.chat.completions.create({

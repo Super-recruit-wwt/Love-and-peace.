@@ -34,7 +34,7 @@ console.log('数据库已同步');
 "
 
 echo "==> 6/6 重启后端"
-pm2 restart "$PM2_NAME"
+pm2 reload ecosystem.config.js
 
 echo ""
 echo "✔ 部署完成 $(date '+%F %T')"

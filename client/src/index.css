@@ -613,3 +613,15 @@ a:hover {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- 15. Utilities ---------- */
+
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--color-paper);
+}

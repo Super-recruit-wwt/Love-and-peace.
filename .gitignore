@@ -8,6 +8,11 @@ server/data/
 同行参考/
 板块-AI讨论群/
 
+# 系统与临时文件
+*.log
+.DS_Store
+Thumbs.db
+
 # Claude 会话规划文件
 task_plan.md
 findings.md

@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [allChars, setAllChars] = useState([]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const inputRef = useRef('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -72,15 +73,19 @@ export default function ChatPage() {
   }, [loading, character, scheduleProactive]);
 
   useEffect(() => {
-    if (!loading && character && messages.length === 0) setInput('你好呀～');
+    if (!loading && character && messages.length === 0) {
+      setInput('你好呀～');
+      inputRef.current = '你好呀～';
+    }
   }, [loading]);
 
   const handleSend = useCallback(async (msg) => {
-    const text = msg || input.trim();
+    const text = msg || inputRef.current.trim();
     if (!text || sending) return;
     const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    inputRef.current = '';
     setSending(true);
     proactiveCountRef.current = 0; // 用户开口，重置连发计数
     try {
@@ -96,7 +101,7 @@ export default function ChatPage() {
       setSending(false);
       scheduleProactive(); // 唤醒可能已安静的主动消息循环
     }
-  }, [input, sending, id, scheduleProactive]);
+  }, [sending, id, scheduleProactive]);
 
   const handleClearHistory = async () => {
     if (!confirm('确定清空所有对话记录吗？此操作不可恢复。')) return;
@@ -232,7 +237,7 @@ export default function ChatPage() {
                 type="text"
                 placeholder="输入消息…"
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={e => { setInput(e.target.value); inputRef.current = e.target.value; }}
               />
             </div>
             <button
